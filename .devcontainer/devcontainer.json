@@ -1,5 +1,5 @@
 {
-    "name": "TethysDash MCP Workshop — Control Plane",
+    "name": "CIROH DevCon 2026 — Control Plane",
     "image": "mcr.microsoft.com/devcontainers/base:ubuntu",
 
     "features": {

@@ -1,4 +1,4 @@
-# TethysDash MCP Workshop — Tethys Geoscience Foundation Summit 2026
+# CIROH DevCon 2026 — TethysDash + MCP Workshop
 
 A 2-hour hands-on workshop that brings up TethysDash + the `nrds_mcps` MCP
 server on a per-participant NSF ACCESS VM. Participants edit MCP tool code

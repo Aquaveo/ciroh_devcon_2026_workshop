@@ -15,7 +15,7 @@
 #   - With --force: `git fetch && git reset --hard origin/<default> &&
 #     git clean -fd`, then re-checks out the pinned SHA from .env.
 #     For tethysapp-tethys_dash: also clears the tethys-persist named volume
-#     by running `docker compose -p tethysdash-mcp-workshop -f $WORKSHOP_ROOT/docker-compose.yml down -v`.
+#     by running `docker compose -p ciroh_devcon_2026_workshop -f $WORKSHOP_ROOT/docker-compose.yml down -v`.
 #     This prevents the stale-init.sh-marker failure (plan finding N5).
 #
 # Plan reference: Unit 2 contract + PD8 + REQ5.
@@ -141,7 +141,7 @@ if [[ "${REPO}" == "tethysapp-tethys_dash" ]]; then
     if [[ -f "${WORKSHOP_ROOT}/docker-compose.yml" ]]; then
         echo "INFO: clearing tethys-persist named volume (paired with tethysapp-tethys_dash reset)"
         docker compose \
-            -p tethysdash-mcp-workshop \
+            -p ciroh_devcon_2026_workshop \
             -f "${WORKSHOP_ROOT}/docker-compose.yml" \
             down --volumes --remove-orphans 2>/dev/null || \
             echo "WARN: docker compose down -v failed (stack may already be down)"

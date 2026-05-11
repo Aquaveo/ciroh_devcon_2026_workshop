@@ -8,7 +8,7 @@
 #   1. Read pinned SHAs + image tag from .env (fallback: .env.example).
 #   2. Clone-or-pull Aquaveo/tethysapp-tethys_dash and Aquaveo/nrds_mcps into
 #      ./repos/, then check out the pinned SHAs (detached HEAD).
-#   3. Pull ghcr.io/aquaveo/tethysdash-workshop:${IMAGE_TAG}; on failure,
+#   3. Pull ghcr.io/aquaveo/ciroh-devcon-2026:${IMAGE_TAG}; on failure,
 #      fall back to docker compose build tethysdash (~10-20 min on weak VMs).
 #
 # Emits a one-line OK/FAIL summary per step. Exits non-zero on any FAIL.
@@ -122,9 +122,9 @@ clone_or_pull nrds_mcps             "${NRDS_MCPS_SHA}"  || exit 1
 #    AND `pull_policy: always` is unset. We make the pull explicit here so
 #    participants don't need to remember it before `docker compose up -d`.
 # ---------------------------------------------------------------------------
-echo "INFO: pulling ghcr.io/aquaveo/tethysdash-workshop:${IMAGE_TAG}"
+echo "INFO: pulling ghcr.io/aquaveo/ciroh-devcon-2026:${IMAGE_TAG}"
 if docker compose pull tethysdash 2>/dev/null; then
-    echo "OK: image ready (pulled ghcr.io/aquaveo/tethysdash-workshop:${IMAGE_TAG})"
+    echo "OK: image ready (pulled ghcr.io/aquaveo/ciroh-devcon-2026:${IMAGE_TAG})"
 else
     echo "WARN: image pull failed (image unavailable, no auth, or no network)."
     echo "INFO: falling back to docker compose build tethysdash (10-20 min on weak VMs)"
