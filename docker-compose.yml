@@ -28,7 +28,12 @@ services:
       context: ./repos/tethysapp-tethys_dash
       dockerfile: .devcontainer/Dockerfile
     container_name: ciroh-devcon-tethysdash
-    command: ["bash", "-lc", "bash .devcontainer/init.sh && bash .devcontainer/run.sh"]
+    # `bash -c` (NOT `bash -lc`): the TethysDash image sets PATH via ENV to
+    # include /opt/venv/bin, where `tethys` lives. A login shell (`-l`) re-runs
+    # /etc/profile and ~/.profile, which resets PATH and drops the venv,
+    # producing `tethys: command not found` from inside init.sh (observed
+    # 2026-05-11 on a fresh VM build).
+    command: ["bash", "-c", "bash .devcontainer/init.sh && bash .devcontainer/run.sh"]
     volumes:
       # Bind-mount the source so participant edits to TethysDash (if they touch
       # it — R5 marks repos/tethysapp-tethys_dash/ as read-only in VS Code) are
@@ -103,11 +108,18 @@ services:
       - "127.0.0.1:9000:9000"
     healthcheck:
       # The /health endpoint is registered as a FastMCP custom_route at
-      # nextgen_mcp/mcp_server.py:49. Returns 200 once tools/list is ready.
+      # nextgen_mcp/mcp_server.py:54. Returns 200 once tools/list is ready.
+      # Uses `wget` not `curl`: the prod nrds-mcps image ships wget for its
+      # own HEALTHCHECK (Dockerfile line 39); curl is NOT installed. Observed
+      # 2026-05-11: curl-based healthcheck reported unhealthy on a fully-
+      # functional server because `exec: curl: not found` exit'd 127 inside
+      # the container.
       test:
         - "CMD"
-        - "curl"
-        - "-fsS"
+        - "wget"
+        - "--quiet"
+        - "--spider"
+        - "--tries=1"
         - "http://localhost:9000/health"
       interval: 5s
       timeout: 3s
