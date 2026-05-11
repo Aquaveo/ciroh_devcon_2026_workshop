@@ -19,7 +19,7 @@ This repo is **under construction** for the 2026 Summit. Tracking:
 - [x] Unit 1 — Repo scaffolding (devcontainer, `.gitignore`, `.env.example`, README skeleton)
 - [x] Unit 2 — Scripts (`setup.sh`, `reset-repos.sh`, `tunnel.sh`, `restart-mcp.sh`)
 - [x] Unit 3 — `docker-compose.yml` (tethysdash service + nrds_mcps stub)
-- [ ] Unit 4 — `nrds_mcps` service: source bind-mount overlay + healthcheck + non-root user override
+- [x] Unit 4 — `nrds_mcps` service: source bind-mount overlay + `/health` healthcheck + `user: root` override
 - [ ] Unit 5 — Full README + pre-workshop email template
 - [ ] Unit 6 — Answer branches on `Aquaveo/nrds_mcps` (maintainer-owned)
 - [ ] Unit 7 — DESCOPED per origin D9 (BYO LLM key only; no shared proxy)

@@ -68,24 +68,51 @@ services:
     restart: unless-stopped
 
   # ------------------------------------------------------------------------
-  # nrds_mcps — published image overlaid with participant-editable source.
+  # nrds_mcps — published prod image overlaid with participant-editable source.
   #
-  # MINIMAL stub (Unit 3 placeholder). Full wiring lands in Unit 4:
-  # healthcheck, source bind-mount overlay, env vars, user override.
-  # As shipped here, the service starts the prod image's built-in entrypoint
-  # against the image's baked-in source — participant edits to
-  # repos/nrds_mcps/nextgen_mcp/ are NOT yet visible. Unit 4 adds the overlay.
+  # The image at ghcr.io/aquaveo/nrds-mcps already ships the FastMCP server
+  # with all deps installed at /venv and the package at /app/nextgen_mcp
+  # (verified against mcp/nrds_mcps/Dockerfile: WORKDIR /app, COPY nextgen_mcp/
+  # ./nextgen_mcp/, USER mcp). The workshop bind-mounts repos/nrds_mcps/
+  # nextgen_mcp into that exact path so participant edits override the image's
+  # baked-in copy. Restart picks them up; no pip install needed.
   # ------------------------------------------------------------------------
   nrds_mcps:
     image: ghcr.io/aquaveo/nrds-mcps:${NRDS_MCPS_IMAGE_TAG:-latest}
     container_name: ciroh-devcon-nrds-mcps
+    # Override image's `USER mcp` so the bind-mount path is writable for any
+    # tooling the participant might want to run inside the container (e.g.,
+    # `docker compose exec nrds_mcps python -c "..."`). Acceptable per
+    # plan R4: per-VM isolation is the security boundary, not in-container uid.
+    user: root
+    volumes:
+      # Source overlay: shadow the image's baked-in nextgen_mcp with the
+      # bind-mounted workshop clone. Image's /venv stays intact (deps
+      # available); only the package source changes.
+      - ./repos/nrds_mcps/nextgen_mcp:/app/nextgen_mcp
     environment:
       MCP_HOST: "0.0.0.0"
       MCP_PORT: "9000"
       MCP_TRANSPORT: "streamable-http"
+      # Image already sets HOME=/tmp for the DuckDB extension cache fix
+      # (workspace memory: project_nrds_mcps_duckdb_home_fix). We keep it
+      # explicit here so changing `user: root` doesn't accidentally restore
+      # /root and break the DuckDB cache path.
       HOME: "/tmp"
     ports:
       - "127.0.0.1:9000:9000"
+    healthcheck:
+      # The /health endpoint is registered as a FastMCP custom_route at
+      # nextgen_mcp/mcp_server.py:49. Returns 200 once tools/list is ready.
+      test:
+        - "CMD"
+        - "curl"
+        - "-fsS"
+        - "http://localhost:9000/health"
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 20s
     restart: unless-stopped
 
 volumes:
