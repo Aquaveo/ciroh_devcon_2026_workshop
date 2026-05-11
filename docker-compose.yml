@@ -1,0 +1,97 @@
+# CIROH DevCon 2026 — TethysDash + MCP Workshop
+#
+# Two services on the default compose bridge network:
+#   tethysdash  — Django app + chatbox UI on 127.0.0.1:8000
+#   nrds_mcps   — FastMCP server on 127.0.0.1:9000
+#
+# Service-to-service traffic uses compose-internal DNS (tethysdash, nrds_mcps).
+# Browser → MCP traffic goes via the laptop's SSH tunnel back to localhost:9000.
+# Both published ports are bound to 127.0.0.1 on the VM; SSH -L is the only path.
+#
+# Plan reference: Units 3 + 4 in
+#   docs/plans/2026-05-11-001-feat-tethysdash-mcp-workshop-orchestration-plan.md
+
+name: ciroh_devcon_2026_workshop
+
+services:
+  # ------------------------------------------------------------------------
+  # tethysdash — Django + chatbox UI.
+  #
+  # Primary path (D10): pull ghcr.io/aquaveo/ciroh-devcon-2026:${IMAGE_TAG}.
+  # Fallback: build from repos/tethysapp-tethys_dash/.devcontainer/Dockerfile
+  # at the pinned SHA. setup.sh handles `docker compose pull tethysdash ||
+  # docker compose build tethysdash` so participants don't need to remember.
+  # ------------------------------------------------------------------------
+  tethysdash:
+    image: ghcr.io/aquaveo/ciroh-devcon-2026:${IMAGE_TAG:-v2026.05}
+    build:
+      context: ./repos/tethysapp-tethys_dash
+      dockerfile: .devcontainer/Dockerfile
+    container_name: ciroh-devcon-tethysdash
+    command: ["bash", "-lc", "bash .devcontainer/init.sh && bash .devcontainer/run.sh"]
+    volumes:
+      # Bind-mount the source so participant edits to TethysDash (if they touch
+      # it — R5 marks repos/tethysapp-tethys_dash/ as read-only in VS Code) are
+      # visible at runtime. The editable install in the image survives because
+      # the absolute path matches (see TethysDash .devcontainer/Dockerfile).
+      - ./repos/tethysapp-tethys_dash:/workspaces/tethysapp-tethys_dash
+      # Preserve init.sh's idempotence marker (${TETHYS_PERSIST}/...) across
+      # `docker compose down/up`. Without this, every restart re-runs
+      # `tethys db migrate` + `tethys services create persistent` (non-idempotent,
+      # guarded by a list-then-create pattern in the existing init.sh).
+      # reset-repos.sh tethysapp-tethys_dash --force clears this volume.
+      - tethys-persist:/root/.tethys
+    ports:
+      # Bind to 127.0.0.1 on the VM: only reachable through SSH -L 8000.
+      - "127.0.0.1:8000:8000"
+    depends_on:
+      # No health condition: TethysDash boot is long enough that nrds_mcps
+      # finishes first, and forcing service_healthy adds startup ordering
+      # fragility for no real win.
+      - nrds_mcps
+    healthcheck:
+      # Static asset path — unauthenticated, reliably 200 under Tethys's dev
+      # settings that init.sh applies. Plan finding F-Healthcheck-Path:
+      # curl `/` returns 302 to /accounts/login under some portal modes;
+      # `curl -f` accepts 3xx silently, masking a real bring-up failure.
+      # Q11 pre-flight (docs/pre-conditions.md) verifies this path returns 200
+      # against the actual TETHYSDASH_SHA before the event.
+      test:
+        - "CMD"
+        - "curl"
+        - "-fsS"
+        - "http://localhost:8000/static/tethys_apps/css/tethys_app_base.css"
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 60s
+    restart: unless-stopped
+
+  # ------------------------------------------------------------------------
+  # nrds_mcps — published image overlaid with participant-editable source.
+  #
+  # MINIMAL stub (Unit 3 placeholder). Full wiring lands in Unit 4:
+  # healthcheck, source bind-mount overlay, env vars, user override.
+  # As shipped here, the service starts the prod image's built-in entrypoint
+  # against the image's baked-in source — participant edits to
+  # repos/nrds_mcps/nextgen_mcp/ are NOT yet visible. Unit 4 adds the overlay.
+  # ------------------------------------------------------------------------
+  nrds_mcps:
+    image: ghcr.io/aquaveo/nrds-mcps:${NRDS_MCPS_IMAGE_TAG:-latest}
+    container_name: ciroh-devcon-nrds-mcps
+    environment:
+      MCP_HOST: "0.0.0.0"
+      MCP_PORT: "9000"
+      MCP_TRANSPORT: "streamable-http"
+      HOME: "/tmp"
+    ports:
+      - "127.0.0.1:9000:9000"
+    restart: unless-stopped
+
+volumes:
+  # Named volume scoped to project name `ciroh_devcon_2026_workshop` (set via
+  # top-level `name:` above). reset-repos.sh's `docker compose -p ... down -v`
+  # targets THIS volume specifically; other compose projects on the same VM
+  # are unaffected.
+  tethys-persist:
+    name: ciroh_devcon_2026_workshop_tethys-persist
