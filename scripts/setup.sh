@@ -52,10 +52,11 @@ require_var() {
     return 0
 }
 
-# Both SHAs and the workshop image tag are required.
-require_var TETHYSDASH_SHA || exit 1
-require_var NRDS_MCPS_SHA  || exit 1
-require_var IMAGE_TAG      || exit 1
+# Both SHAs and both image tags are required.
+require_var TETHYSDASH_SHA       || exit 1
+require_var NRDS_MCPS_SHA        || exit 1
+require_var IMAGE_TAG            || exit 1
+require_var NRDS_MCPS_IMAGE_TAG  || exit 1
 
 # ---------------------------------------------------------------------------
 # 2. Clone-or-pull the two repos. Per-repo strict failure.
