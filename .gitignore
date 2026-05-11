@@ -1,0 +1,25 @@
+# Workshop-day artifacts populated by setup.sh / docker compose.
+# Participant edits to these directories live outside this repo.
+repos/
+
+# Environment overrides — participants/maintainers create .env from .env.example
+# and may keep VM-specific values out of version control.
+.env
+
+# Logs from local debugging
+*.log
+
+# OS noise
+.DS_Store
+Thumbs.db
+
+# Editor noise
+.vscode/settings.json
+.idea/
+
+# Python caches that might leak in if anyone runs python in-tree
+__pycache__/
+*.pyc
+
+# Docker compose ephemera
+docker-compose.override.yml

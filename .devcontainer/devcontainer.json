@@ -1,0 +1,56 @@
+{
+    "name": "TethysDash MCP Workshop — Control Plane",
+    "image": "mcr.microsoft.com/devcontainers/base:ubuntu",
+
+    "features": {
+        "ghcr.io/devcontainers/features/docker-outside-of-docker:1": {
+            "moby": false,
+            "installDockerBuildx": true,
+            "installDockerComposeSwitch": true,
+            "version": "latest"
+        },
+        "ghcr.io/devcontainers/features/git:1": {},
+        "ghcr.io/devcontainers/features/github-cli:1": {}
+    },
+
+    "postCreateCommand": "bash scripts/setup.sh || echo 'setup.sh did not complete cleanly — see output above; you can re-run it manually'",
+
+    "forwardPorts": [8000, 9000],
+    "portsAttributes": {
+        "8000": {
+            "label": "TethysDash UI",
+            "onAutoForward": "notify"
+        },
+        "9000": {
+            "label": "nrds_mcps MCP server",
+            "onAutoForward": "silent"
+        }
+    },
+
+    "remoteUser": "vscode",
+
+    "customizations": {
+        "vscode": {
+            "extensions": [
+                "ms-python.python",
+                "ms-azuretools.vscode-docker",
+                "eamodio.gitlens",
+                "redhat.vscode-yaml"
+            ],
+            "settings": {
+                "files.watcherExclude": {
+                    "**/repos/**": true
+                },
+                "files.readonlyInclude": {
+                    "repos/tethysapp-tethys_dash/**": true
+                },
+                "editor.formatOnSave": false,
+                "terminal.integrated.defaultProfile.linux": "bash"
+            }
+        }
+    },
+
+    "mounts": [
+        "source=/var/run/docker.sock,target=/var/run/docker.sock,type=bind"
+    ]
+}
