@@ -20,6 +20,12 @@
 
 set -euo pipefail
 
+# Resolve workshop root from the script's own location so the drop-in
+# below opens the right folder even if the repo is cloned somewhere other
+# than ~/workshops/devcon.
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &> /dev/null && pwd)"
+WORKSHOP_ROOT="$(dirname -- "${SCRIPT_DIR}")"
+
 # ---------------------------------------------------------------------------
 # 1. Install (idempotent — official installer is itself idempotent, but we
 #    skip the network round-trip if the binary is already present).
@@ -32,13 +38,34 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# 2. Enable + start the per-user systemd unit. `enable --now` is idempotent.
+# 2. Configure code-server to open the workshop dir on launch.
+#
+# Drop-in override (NOT modification of the shipped unit file) so package
+# updates to code-server don't clobber the change. Standard systemd
+# pattern: the empty `ExecStart=` line clears the inherited value
+# before the second line redefines it with the workshop dir appended.
+# ---------------------------------------------------------------------------
+CODE_SERVER_BIN="$(command -v code-server)"
+DROPIN_DIR="/etc/systemd/system/code-server@${USER}.service.d"
+echo "INFO: setting code-server's default workspace to ${WORKSHOP_ROOT}"
+sudo mkdir -p "${DROPIN_DIR}"
+sudo tee "${DROPIN_DIR}/workspace.conf" >/dev/null <<EOF
+[Service]
+ExecStart=
+ExecStart=${CODE_SERVER_BIN} ${WORKSHOP_ROOT}
+EOF
+sudo systemctl daemon-reload
+
+# ---------------------------------------------------------------------------
+# 3. Enable + start the per-user systemd unit. `enable --now` is idempotent;
+#    `restart` picks up the drop-in's new ExecStart on re-runs of this script.
 # ---------------------------------------------------------------------------
 echo "INFO: enabling + starting code-server@${USER}"
 sudo systemctl enable --now "code-server@${USER}"
+sudo systemctl restart "code-server@${USER}"
 
 # ---------------------------------------------------------------------------
-# 3. Print the password discovery hint. The installer generates a random
+# 4. Print the password discovery hint. The installer generates a random
 #    password at first install in ~/.config/code-server/config.yaml; that
 #    file is the source of truth.
 # ---------------------------------------------------------------------------
