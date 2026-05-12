@@ -103,13 +103,13 @@ else
 fi
 
 case "${REPO}" in
-    tethysapp-tethys_dash) PIN_SHA="${TETHYSDASH_SHA:-}";;
-    nrds_mcps)             PIN_SHA="${NRDS_MCPS_SHA:-}";;
-    tethysdash_mcps)       PIN_SHA="${TETHYSDASH_MCPS_SHA:-}";;
+    tethysapp-tethys_dash) PIN_REF="${TETHYSDASH_REF:-}";;
+    nrds_mcps)             PIN_REF="${NRDS_MCPS_REF:-}";;
+    tethysdash_mcps)       PIN_REF="${TETHYSDASH_MCPS_REF:-}";;
 esac
 
-if [[ -z "${PIN_SHA}" || "${PIN_SHA}" == "TBD" ]]; then
-    echo "ERROR: pinned SHA for ${REPO} is unset or TBD in .env." >&2
+if [[ -z "${PIN_REF}" || "${PIN_REF}" == "TBD" ]]; then
+    echo "ERROR: ref for ${REPO} is unset or TBD in .env." >&2
     exit 1
 fi
 
@@ -133,8 +133,15 @@ echo "INFO: resetting ${TARGET} to origin/${DEFAULT_BRANCH}"
 git -C "${TARGET}" reset --hard --quiet "origin/${DEFAULT_BRANCH}"
 git -C "${TARGET}" clean -fd --quiet
 
-echo "INFO: re-checking out pinned SHA ${PIN_SHA}"
-git -C "${TARGET}" checkout --quiet "${PIN_SHA}"
+echo "INFO: re-checking out ref ${PIN_REF}"
+# Auto-detect branch vs SHA: if ${PIN_REF} matches a remote branch, check
+# it out and reset to origin/${PIN_REF}; otherwise treat as SHA (detached
+# HEAD). Mirrors setup.sh's clone_or_pull resolution logic.
+if git -C "${TARGET}" show-ref --verify --quiet "refs/remotes/origin/${PIN_REF}"; then
+    git -C "${TARGET}" checkout --quiet -B "${PIN_REF}" "origin/${PIN_REF}"
+else
+    git -C "${TARGET}" checkout --quiet "${PIN_REF}"
+fi
 
 # ---------------------------------------------------------------------------
 # Volume reset for tethysapp-tethys_dash (PD8 / N5 fix).

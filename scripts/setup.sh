@@ -5,9 +5,13 @@
 # Idempotent. Safe to re-run.
 #
 # Steps:
-#   1. Read pinned SHAs + image tag from .env (fallback: .env.example).
-#   2. Clone-or-pull the three consumed repos into ./repos/ and check out the
-#      pinned SHAs (detached HEAD). Source remotes are per-repo:
+#   1. Read refs + image tags from .env (fallback: .env.example).
+#   2. Clone-or-pull the three consumed repos into ./repos/ and check out
+#      the configured ref. The ref can be EITHER a branch name (e.g.,
+#      "main", "feature/tethysdash-mcp-server") or a 40-char SHA — the
+#      function auto-detects. Branch refs ff-pull to latest on every run;
+#      SHA refs produce a detached HEAD for pin reproducibility.
+#      Source remotes are per-repo:
 #        tethysplatform/tethysapp-tethys_dash  (canonical upstream)
 #        Aquaveo/nrds_mcps
 #        Aquaveo/tethysdash_mcps
@@ -55,10 +59,10 @@ require_var() {
     return 0
 }
 
-# All three SHAs and three image tags are required.
-require_var TETHYSDASH_SHA            || exit 1
-require_var NRDS_MCPS_SHA             || exit 1
-require_var TETHYSDASH_MCPS_SHA       || exit 1
+# All three refs (branch or SHA) and three image tags are required.
+require_var TETHYSDASH_REF            || exit 1
+require_var NRDS_MCPS_REF             || exit 1
+require_var TETHYSDASH_MCPS_REF       || exit 1
 require_var IMAGE_TAG                 || exit 1
 require_var NRDS_MCPS_IMAGE_TAG       || exit 1
 require_var TETHYSDASH_MCPS_IMAGE_TAG || exit 1
@@ -68,7 +72,7 @@ require_var TETHYSDASH_MCPS_IMAGE_TAG || exit 1
 # ---------------------------------------------------------------------------
 clone_or_pull() {
     local repo_name="$1"        # tethysapp-tethys_dash | nrds_mcps | tethysdash_mcps
-    local sha="$2"
+    local ref="$2"              # branch name OR 40-char SHA; auto-detected below
     local target="repos/${repo_name}"
 
     # Per-repo source URL. tethysapp-tethys_dash lives in the canonical
@@ -97,44 +101,62 @@ clone_or_pull() {
             echo "FAIL: git clone ${url} failed." >&2
             return 1
         fi
-    else
-        echo "INFO: ${target} exists; fetching + ff-only pull on default branch"
-        # Pull the default branch first so the SHA we want to check out is
-        # guaranteed reachable; ff-only fails loudly if a participant has
-        # diverged, which steers them to reset-repos.sh.
-        if ! git -C "${target}" fetch --quiet origin; then
-            echo "FAIL: git fetch in ${target} failed." >&2
-            return 1
-        fi
-        # Best-effort ff: if we're on a branch and it's ff'able, pull it.
-        # If we're on a detached HEAD (typical after a prior setup.sh run),
-        # skip the ff-pull and rely on the SHA checkout below.
-        local cur_branch
-        cur_branch="$(git -C "${target}" symbolic-ref --quiet --short HEAD 2>/dev/null || echo '')"
-        if [[ -n "${cur_branch}" ]]; then
-            if ! git -C "${target}" pull --ff-only --quiet origin "${cur_branch}"; then
-                echo "FAIL: ${target} has diverged from origin/${cur_branch}." >&2
-                echo "      Recover with: bash scripts/reset-repos.sh ${repo_name} --force" >&2
-                return 1
-            fi
-        fi
     fi
 
-    # Check out the pinned SHA (produces detached HEAD intentionally).
-    if ! git -C "${target}" checkout --quiet "${sha}"; then
-        echo "FAIL: git checkout ${sha} in ${target} failed (SHA invalid or unreachable)." >&2
+    # Always fetch latest refs — cheap, idempotent, ensures branches and
+    # SHAs are both reachable for the resolution step below.
+    if ! git -C "${target}" fetch --quiet origin; then
+        echo "FAIL: git fetch in ${target} failed." >&2
         return 1
     fi
 
-    echo "OK: ${target} @ ${sha}"
+    # Resolve ref: is it a remote branch on origin, or a SHA/tag?
+    # `show-ref --verify refs/remotes/origin/<ref>` returns 0 only for an
+    # exact remote branch match.
+    if git -C "${target}" show-ref --verify --quiet "refs/remotes/origin/${ref}"; then
+        # Branch tracking. Check out the branch (creating a local tracking
+        # branch if it doesn't exist yet) and ff-pull to the latest commit.
+        # ff-only fails loud on a diverged local — that's the WIP-protection
+        # signal that steers the participant to reset-repos.sh.
+        if git -C "${target}" rev-parse --verify --quiet "${ref}" >/dev/null; then
+            # Local branch exists
+            if ! git -C "${target}" checkout --quiet "${ref}"; then
+                echo "FAIL: could not switch ${target} to local branch ${ref}." >&2
+                return 1
+            fi
+            if ! git -C "${target}" pull --ff-only --quiet origin "${ref}"; then
+                echo "FAIL: ${target} cannot ff-pull origin/${ref} (diverged or dirty)." >&2
+                echo "      Recover with: bash scripts/reset-repos.sh ${repo_name} --force" >&2
+                return 1
+            fi
+        else
+            # Local branch doesn't exist yet — create tracking branch
+            if ! git -C "${target}" checkout --quiet -b "${ref}" --track "origin/${ref}"; then
+                echo "FAIL: could not create tracking branch ${ref} in ${target}." >&2
+                return 1
+            fi
+        fi
+        local sha
+        sha="$(git -C "${target}" rev-parse --short=10 HEAD)"
+        echo "OK: ${target} @ origin/${ref} (${sha}, latest)"
+    else
+        # Not a remote branch — try SHA / tag. `git checkout` produces a
+        # detached HEAD on a SHA, which is intentional for pin reproducibility.
+        if ! git -C "${target}" checkout --quiet "${ref}"; then
+            echo "FAIL: ${ref} is neither a remote branch on origin nor a reachable SHA/tag in ${target}." >&2
+            return 1
+        fi
+        echo "OK: ${target} @ ${ref} (pinned, detached HEAD)"
+    fi
+
     return 0
 }
 
 mkdir -p repos
 
-clone_or_pull tethysapp-tethys_dash "${TETHYSDASH_SHA}"       || exit 1
-clone_or_pull nrds_mcps             "${NRDS_MCPS_SHA}"        || exit 1
-clone_or_pull tethysdash_mcps       "${TETHYSDASH_MCPS_SHA}"  || exit 1
+clone_or_pull tethysapp-tethys_dash "${TETHYSDASH_REF}"       || exit 1
+clone_or_pull nrds_mcps             "${NRDS_MCPS_REF}"        || exit 1
+clone_or_pull tethysdash_mcps       "${TETHYSDASH_MCPS_REF}"  || exit 1
 
 # ---------------------------------------------------------------------------
 # Removed 2026-05-12: bundle-presence guard.

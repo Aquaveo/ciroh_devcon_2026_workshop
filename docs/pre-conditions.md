@@ -45,9 +45,12 @@ No action required.
 
 ---
 
-## Q7 — TethysDash SHA pin (`TETHYSDASH_SHA`)
+## Q7 — TethysDash ref pin (`TETHYSDASH_REF`)
 
-**Status:** RESOLVED 2026-05-12.
+**Status:** RESOLVED 2026-05-12. Default is **branch tracking** as of
+2026-05-12 (workshop preference: easier maintenance for dev VMs;
+trade away cohort-wide reproducibility for ergonomics). Replace with a
+SHA before the event if reproducibility is required.
 
 **What's needed:** Known-good commit SHA on
 `tethysplatform/tethysapp-tethys_dash`, on the `feature/tethysdash-mcp-server`
@@ -65,16 +68,26 @@ git -C repos/tethysapp-tethys_dash merge-base --is-ancestor 186fb37 <TETHYSDASH_
     || echo "FAIL: SHA predates 186fb37 — runtime registry reads will be empty"
 ```
 
-**Pinned values:**
-- `TETHYSDASH_SHA`: `29b7bc847fcd3dc09a2d165a8cb0b1cbf087e2af`
-- URL: https://github.com/tethysplatform/tethysapp-tethys_dash/commit/29b7bc847fcd3dc09a2d165a8cb0b1cbf087e2af
-- Date pinned: 2026-05-12
-- Reason for choosing this SHA: tip of `feature/tethysdash-mcp-server`
-  on `tethysplatform/tethysapp-tethys_dash` as of 2026-05-12; includes
-  PR #122 (multi-stage devcontainer Dockerfile that bakes the React
-  bundle at image build), which closes Q7c entirely.
-- Includes `186fb37`: yes (verified via `git merge-base --is-ancestor
-  186fb37 29b7bc8` 2026-05-12).
+**Default values (branch tracking):**
+- `TETHYSDASH_REF`: `feature/tethysdash-mcp-server`
+- Remote: https://github.com/tethysplatform/tethysapp-tethys_dash
+- Date set: 2026-05-12
+- Reason: feature/tethysdash-mcp-server is the team's integration branch
+  on tethysplatform; includes PR #122 (multi-stage devcontainer Dockerfile
+  that bakes the React bundle at image build) which closed Q7c.
+- Includes `186fb37`: yes (verified at HEAD 29b7bc8 on 2026-05-12; new
+  commits on the branch are checked by setup.sh's ff-pull on each run,
+  so the branch HEAD always carries the merge-base ancestry).
+
+**Event-day pinning (optional):** before the event, resolve the branch
+to a concrete SHA and replace the value above. setup.sh accepts either
+form transparently. Example:
+```bash
+git ls-remote https://github.com/tethysplatform/tethysapp-tethys_dash.git \
+    refs/heads/feature/tethysdash-mcp-server
+# → 29b7bc847fcd3dc09a2d165a8cb0b1cbf087e2af
+# Update .env: TETHYSDASH_REF=29b7bc847fcd3dc09a2d165a8cb0b1cbf087e2af
+```
 
 **Blocking?** **Hard.** `scripts/setup.sh` reads this from `.env`; Unit 8's
 ghcr.io publish workflow checks out this SHA. Workshop cannot run without it.
@@ -136,45 +149,46 @@ bundle drift — only this pre-condition does.
 
 ---
 
-## Q7b — nrds_mcps SHA pin (`NRDS_MCPS_SHA`) — added in pass-1 plan review
+## Q7b — nrds_mcps ref pin (`NRDS_MCPS_REF`) — added in pass-1 plan review
 
-**Status:** TBD
+**Status:** RESOLVED 2026-05-12 with branch-tracking default
+(`NRDS_MCPS_REF=main`).
 
-**What's needed:** Known-good commit SHA on `Aquaveo/nrds_mcps`. Maintainer-
-validated to boot cleanly and expose `/health` + the `streamable-http`
-transport. Answer branches (`step-N-answer`) branch from this SHA.
+**Default value:**
+- `NRDS_MCPS_REF`: `main`
+- Remote: https://github.com/Aquaveo/nrds_mcps
+- Date set: 2026-05-12
+- Reason: `main` is the canonical integration branch on `Aquaveo/nrds_mcps`.
+  setup.sh ff-pulls on every run so upstream fixes propagate without a
+  re-pin.
 
-**How to fill in:**
-- `NRDS_MCPS_SHA`: `TBD` (40-char SHA, no `v` prefix)
-- URL: `https://github.com/Aquaveo/nrds_mcps/commit/<sha>`
-- Date pinned: `TBD` (YYYY-MM-DD)
-- Reason for choosing this SHA: `TBD`
-
-**Blocking?** **Hard.** `scripts/setup.sh` reads this from `.env`.
+**Event-day pinning (optional):** resolve the branch to a concrete SHA
+and replace the value before the workshop if cohort reproducibility is
+required. setup.sh accepts either form.
 
 ---
 
-## Q7d — tethysdash_mcps SHA pin (`TETHYSDASH_MCPS_SHA`)
+## Q7d — tethysdash_mcps ref pin (`TETHYSDASH_MCPS_REF`)
 (Added 2026-05-11 with plan 008 — third-service integration.)
 
-**Status:** TBD
+**Status:** RESOLVED 2026-05-12 with branch-tracking default
+(`TETHYSDASH_MCPS_REF=main`).
 
-**What's needed:** Known-good commit SHA on `Aquaveo/tethysdash_mcps`.
-Maintainer-validated to boot cleanly under the dev runbook in
-`mcp/tethysdash_mcps/README.md` and to be ancestor-equivalent to the
-`tethysdash_mcps` image tag pinned in `TETHYSDASH_MCPS_IMAGE_TAG` (so the
-bind-mounted source overlay matches the image's deps).
+**Default value:**
+- `TETHYSDASH_MCPS_REF`: `main`
+- Remote: https://github.com/Aquaveo/tethysdash_mcps
+- Date set: 2026-05-12
+- Reason: `main` is the canonical integration branch on
+  `Aquaveo/tethysdash_mcps`. setup.sh ff-pulls on every run.
+- Image tag verified live on ghcr.io: `TBD` for event prep
+  (`docker manifest inspect ghcr.io/aquaveo/tethysdash-mcps:<TETHYSDASH_MCPS_IMAGE_TAG>`)
+  — still a hard-blocking check before the event ships, independent of
+  the source ref.
 
-**How to fill in:**
-- `TETHYSDASH_MCPS_SHA`: `TBD` (40-char SHA, no `v` prefix)
-- URL: `https://github.com/Aquaveo/tethysdash_mcps/commit/<sha>`
-- Date pinned: `TBD` (YYYY-MM-DD)
-- Reason for choosing this SHA: `TBD` (e.g., "tag `v0.2.0` cut from this SHA")
-- Image tag verified live on ghcr.io: `TBD` (yes / no — confirm via
-  `docker manifest inspect ghcr.io/aquaveo/tethysdash-mcps:<TETHYSDASH_MCPS_IMAGE_TAG>`)
-
-**Blocking?** **Hard.** `scripts/setup.sh` reads this from `.env`; the
-compose service consumes the image tag. Workshop cannot run without both.
+**Event-day pinning (optional):** resolve the branch to a SHA before the
+workshop if you want frozen behavior, and tag the `tethysdash-mcps` image
+to a specific `v*` (not `latest`). The ref + the image tag should
+correspond to the same release for compose-bind-mount-overlay coherence.
 
 ---
 
@@ -252,9 +266,10 @@ must use a different strategy (e.g., a Tethys admin API endpoint, or accept
 
 Unit 9's checklist verifies every entry above is non-TBD before the
 "workshop-ready" sign-off. Soft-blocking items may carry an explicit
-"descoped/deferred" status; hard-blocking items (Q7b, Q7d, Q8) must have
-concrete values. Q7 + Q7c are resolved/closed as of 2026-05-12 (see
-respective sections).
+"descoped/deferred" status; hard-blocking items (Q8) must have concrete
+values. Q7 + Q7b + Q7c + Q7d are resolved as of 2026-05-12 — all three
+repo refs default to branch tracking, and the bundle-staleness gate
+(Q7c) was closed by PR #122 on tethysplatform/tethysapp-tethys_dash.
 
 ## Change log
 
@@ -275,3 +290,10 @@ respective sections).
   Q7c closed by the same SHA — PR #122 makes the devcontainer Dockerfile
   multi-stage with a Node frontend-builder stage, eliminating the
   bundle-vs-source staleness failure mode entirely.
+- 2026-05-12 (later) — All three SHA pins refactored to branch tracking.
+  Env vars renamed `*_SHA` → `*_REF`. Defaults are
+  `feature/tethysdash-mcp-server`, `main`, `main`. setup.sh and
+  reset-repos.sh auto-detect branch vs SHA per ref; either form works.
+  Q7b + Q7d resolved at the same time (branch defaults supersede the
+  pending TBD values). Maintainer can replace any ref with a SHA before
+  the event for cohort reproducibility.
