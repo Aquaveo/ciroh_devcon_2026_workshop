@@ -2,12 +2,17 @@
 #
 # tunnel.sh — print the SSH -L command for the workshop tunnel.
 #
-# The chatbox in the participant's laptop browser reaches the two MCP
-# servers on `localhost:9000` (nrds_mcps, data layer) and `localhost:9001`
-# (tethysdash_mcps, visualization layer) via the -L forwards, NOT via
-# compose-internal DNS. The TethysDash UI sits behind `localhost:8000`
-# (also via -L). All three ports must be tunneled or the workshop's
-# edit-and-test loop breaks.
+# Four forwards in one ssh session:
+#   8000 — TethysDash UI (Django + chatbox)
+#   8080 — code-server (browser VS Code, installed on the VM via
+#          scripts/install-code-server.sh; runs outside compose)
+#   9000 — nrds_mcps (data-layer MCP server)
+#   9001 — tethysdash_mcps (visualization-layer MCP server)
+#
+# 8000/9000/9001 are bound to 127.0.0.1 on the VM by the compose `ports:`
+# stanzas; 8080 is bound to 127.0.0.1 by code-server's default config
+# (~/.config/code-server/config.yaml). SSH -L is the only path from the
+# participant's laptop into any of them.
 #
 # Usage:
 #   bash scripts/tunnel.sh                  # prompts for VM host if no env var
@@ -64,18 +69,21 @@ EOF
 fi
 
 # ServerAliveInterval keeps the tunnel up across NAT idle timeouts; without
-# it, the -L 9000/9001 forwards sometimes die silently mid-workshop while
-# -L 8000 survives (see README troubleshooting "chatbox can't reach MCP but
-# UI works").
+# it, the higher-numbered forwards sometimes die silently mid-workshop
+# while -L 8000 survives (see README troubleshooting "chatbox can't reach
+# MCP but UI works").
 cat <<EOF
 # Run this command in a NEW laptop terminal (NOT inside the devcontainer):
 
 ssh -o ServerAliveInterval=30 -o ServerAliveCountMax=3 \\
     -L 8000:localhost:8000 \\
+    -L 8080:localhost:8080 \\
     -L 9000:localhost:9000 \\
     -L 9001:localhost:9001 \\
     ${host}
 
-# Then open http://localhost:8000 in your laptop browser.
+# Then in your laptop browser:
+#   http://localhost:8000  — TethysDash UI
+#   http://localhost:8080  — code-server (browser VS Code)
 # Keep this ssh session open for the duration of the workshop.
 EOF

@@ -46,48 +46,70 @@ This repo is **under construction** for the 2026 Summit. Tracking:
 
 See pre-conditions: [`docs/pre-conditions.md`](docs/pre-conditions.md).
 
-## Quick start (preview — full version in Unit 5)
+## VM provisioning (one-time per VM)
 
-On the NSF ACCESS VM:
+code-server runs **on the VM**, not in compose, so its integrated terminal
+is the VM shell (you can run `docker compose logs`, `bash scripts/...`,
+etc. directly from inside the IDE). Install it once per VM:
 
 ```bash
-# 1. Open this repo in DevPod (or VS Code Remote-Containers). The workshop
-#    devcontainer's postCreateCommand runs scripts/setup.sh.
-# 2. Copy .env.example to .env and fill in the SHAs published in the
-#    pre-workshop email.
+git clone https://github.com/Aquaveo/ciroh_devcon_2026_workshop.git ~/workshops/devcon
+cd ~/workshops/devcon
+bash scripts/install-code-server.sh
+```
+
+The script wraps the official install + systemd-enable from
+https://github.com/coder/code-server. It's idempotent; re-running it is
+a no-op if code-server is already present. The script prints the
+auto-generated password from `~/.config/code-server/config.yaml` at the
+end — copy it; you'll paste it into the browser after the tunnel is up.
+
+## Quick start (preview — full version in Unit 5)
+
+On the NSF ACCESS VM, **after VM provisioning above**:
+
+```bash
+# 1. Open this repo in code-server (http://localhost:8080 via the tunnel
+#    below), OR work in an SSH session — both paths work identically.
+# 2. Copy .env.example to .env:
 cp .env.example .env
 
 # 3. After setup.sh completes, bring the stack up:
 docker compose up -d
 
-# 4. From your laptop, open the SSH tunnel (forwards three ports: 8000, 9000, 9001):
+# 4. From your laptop, open the SSH tunnel (forwards four ports: 8000, 8080, 9000, 9001):
 bash scripts/tunnel.sh           # prints the command; copy-paste in another terminal
 
-# 5. In your laptop browser, open http://localhost:8000.
+# 5. In your laptop browser, open the two URLs:
+#       http://localhost:8000    # TethysDash UI
+#       http://localhost:8080    # code-server (browser VS Code)
+#                                #   paste the password from install-code-server.sh
 
-# 6. Open the chatbox sidebar (gear icon → MCP servers) and add BOTH URLs:
+# 6. In TethysDash's chatbox sidebar (gear icon → MCP servers), add BOTH:
 #       http://localhost:9000/mcp    # nrds_mcps  (data-layer tools)
 #       http://localhost:9001/mcp    # tethysdash_mcps  (visualization-layer tools)
 #    Both URLs persist in localStorage per dashboard; you only set them once.
 
-# 7. Edit any MCP tool source file and just save:
-#       vim repos/nrds_mcps/nextgen_mcp/tools/<some_tool>.py     # or
-#       vim repos/tethysdash_mcps/tethysdash_mcp/<some_module>.py
+# 7. In code-server, edit any MCP tool source file and save (Ctrl+S):
+#       repos/nrds_mcps/nextgen_mcp/tools/<some_tool>.py     # or
+#       repos/tethysdash_mcps/tethysdash_mcp/<some_module>.py
 #    The server auto-restarts in ~1-2 seconds (watchfiles + inotify on the
-#    bind-mount). Then refresh the browser tab to force chatbox-core to
-#    re-probe the tool catalog.
+#    bind-mount). Then refresh the TethysDash tab to force chatbox-core
+#    to re-probe the tool catalog.
 ```
 
 ## Edit loop
 
 Both MCP servers run under a `fastmcp`-based hot-reload wrapper
-(`scripts/run-mcp-with-reload.py`). The edit-and-test loop is:
+(`scripts/run-mcp-with-reload.py`). Participants edit via **code-server**
+in the browser (`http://localhost:8080` via the SSH tunnel) — no SSH +
+vim required. The loop:
 
 | Step | Action |
 |------|--------|
-| 1 | Edit a file under `repos/nrds_mcps/nextgen_mcp/` or `repos/tethysdash_mcps/tethysdash_mcp/`. |
-| 2 | Save. `watchfiles` detects the change through the bind-mount and respawns the FastMCP process within 1–2 seconds. |
-| 3 | Refresh the browser tab. The chatbox re-probes the MCP server and picks up the change (renamed tools, changed schemas, modified return envelopes). |
+| 1 | In the code-server tab (`http://localhost:8080`), navigate to `repos/nrds_mcps/nextgen_mcp/` or `repos/tethysdash_mcps/tethysdash_mcp/` and edit a file. |
+| 2 | Save (Ctrl+S / Cmd+S). The host-side bind-mount surfaces the change to the MCP container; `watchfiles` detects it and respawns the FastMCP process within 1–2 seconds. |
+| 3 | Switch to the TethysDash tab (`http://localhost:8000`) and refresh. The chatbox re-probes the MCP server and picks up the change (renamed tools, changed schemas, modified return envelopes). |
 
 If your edit introduces an import-time syntax error, the server will
 crash on respawn. The fix is the same: re-edit the file and save again
@@ -106,10 +128,12 @@ the traceback while diagnosing.
 ├── docs/
 │   └── pre-conditions.md Unit 0 gate (SHAs, data steward, VM specs).
 ├── scripts/
-│   ├── setup.sh          Clone tethysapp-tethys_dash + nrds_mcps, pin SHAs, pull image.
-│   ├── reset-repos.sh    WIP-protected recovery (refuses without --force).
-│   ├── tunnel.sh         Prints the SSH -L command.
-│   └── restart-mcp.sh    docker compose restart nrds_mcps + health poll.
+│   ├── install-code-server.sh  ONE-TIME per-VM install of code-server (host-side, not compose).
+│   ├── setup.sh                Clone the three consumed repos, pull workshop image.
+│   ├── reset-repos.sh          WIP-protected recovery (refuses without --force).
+│   ├── tunnel.sh               Prints the SSH -L command (forwards 4 ports).
+│   ├── restart-mcp.sh          docker compose restart <service> + health poll (escape hatch).
+│   └── run-mcp-with-reload.py  fastmcp hot-reload wrapper run inside each MCP container.
 └── repos/                Gitignored. Populated by setup.sh:
     ├── tethysapp-tethys_dash/   @ TETHYSDASH_SHA
     ├── nrds_mcps/               @ NRDS_MCPS_SHA
