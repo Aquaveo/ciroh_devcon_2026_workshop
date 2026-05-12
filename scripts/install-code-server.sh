@@ -57,7 +57,38 @@ EOF
 sudo systemctl daemon-reload
 
 # ---------------------------------------------------------------------------
-# 3. Enable + start the per-user systemd unit. `enable --now` is idempotent;
+# 3. User settings — disable autosave so Ctrl+S is the only path that
+#    triggers the MCP hot-reload watcher. Without this, code-server's
+#    autosave (if a participant flips it on) would fire spurious
+#    container restarts mid-edit.
+# ---------------------------------------------------------------------------
+SETTINGS_DIR="${HOME}/.local/share/code-server/User"
+SETTINGS_FILE="${SETTINGS_DIR}/settings.json"
+mkdir -p "${SETTINGS_DIR}"
+if [[ ! -f "${SETTINGS_FILE}" ]]; then
+    echo "INFO: writing ${SETTINGS_FILE} with files.autoSave=off"
+    cat > "${SETTINGS_FILE}" <<'JSON'
+{
+  "files.autoSave": "off"
+}
+JSON
+else
+    # Merge in-place via python (always on Ubuntu/Debian VMs). Preserves
+    # any other settings the participant may have added.
+    echo "INFO: merging files.autoSave=off into ${SETTINGS_FILE}"
+    python3 - "${SETTINGS_FILE}" <<'PY'
+import json, sys
+path = sys.argv[1]
+with open(path) as f:
+    data = json.load(f)
+data["files.autoSave"] = "off"
+with open(path, "w") as f:
+    json.dump(data, f, indent=2)
+PY
+fi
+
+# ---------------------------------------------------------------------------
+# 4. Enable + start the per-user systemd unit. `enable --now` is idempotent;
 #    `restart` picks up the drop-in's new ExecStart on re-runs of this script.
 # ---------------------------------------------------------------------------
 echo "INFO: enabling + starting code-server@${USER}"
@@ -65,7 +96,7 @@ sudo systemctl enable --now "code-server@${USER}"
 sudo systemctl restart "code-server@${USER}"
 
 # ---------------------------------------------------------------------------
-# 4. Print the password discovery hint. The installer generates a random
+# 5. Print the password discovery hint. The installer generates a random
 #    password at first install in ~/.config/code-server/config.yaml; that
 #    file is the source of truth.
 # ---------------------------------------------------------------------------
