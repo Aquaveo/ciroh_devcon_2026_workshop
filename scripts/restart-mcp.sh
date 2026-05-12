@@ -1,16 +1,21 @@
 #!/usr/bin/env bash
 #
-# restart-mcp.sh — restart the nrds_mcps compose service + poll its
+# restart-mcp.sh — restart one of the MCP compose services + poll its
 # healthcheck until healthy. The primary edit-and-test loop entry point.
 #
-# Usage: bash scripts/restart-mcp.sh
+# Usage:
+#   bash scripts/restart-mcp.sh                  # defaults to nrds_mcps
+#   bash scripts/restart-mcp.sh nrds_mcps
+#   bash scripts/restart-mcp.sh tethysdash_mcps
 #
-# With the prod nrds-mcps image (plan N-Arch-1), `docker compose restart`
-# re-execs the image's built-in `python -m nextgen_mcp.mcp_server`
-# entrypoint against the bind-mount-overlaid source under
-# repos/nrds_mcps/nextgen_mcp/. Typical time: 1-5 seconds.
+# `docker compose restart` re-execs each image's entrypoint against the
+# bind-mount-overlaid source under repos/<repo>/. Typical time: 1-5 seconds.
 #
-# Plan reference: Unit 4 (compose service + healthcheck poll) + REQ3.
+# Plan references:
+#   docs/plans/2026-05-11-001-feat-tethysdash-mcp-workshop-orchestration-plan.md
+#     Unit 4 (initial nrds_mcps version) + REQ3
+#   docs/plans/2026-05-11-008-feat-workshop-add-tethysdash-mcps-plan.md
+#     Unit 4 (generalize to allowlisted service-name arg)
 
 set -euo pipefail
 
@@ -18,13 +23,27 @@ SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &> /dev/null && pwd)"
 WORKSHOP_ROOT="$(dirname -- "${SCRIPT_DIR}")"
 cd "${WORKSHOP_ROOT}"
 
-SERVICE=nrds_mcps
+# Positional service-name arg. Allowlist enforced below. Default preserves
+# back-compat for the original `bash scripts/restart-mcp.sh` invocation
+# documented in the README skeleton before plan 008.
+SERVICE="${1:-nrds_mcps}"
+
+# Allowlist + per-service fallback port for the no-healthcheck branch below.
+case "${SERVICE}" in
+    nrds_mcps)        FALLBACK_PORT=9000 ;;
+    tethysdash_mcps)  FALLBACK_PORT=9001 ;;
+    *)
+        echo "ERROR: unknown service '${SERVICE}'." >&2
+        echo "       Valid services: nrds_mcps, tethysdash_mcps" >&2
+        exit 1
+        ;;
+esac
+
 TIMEOUT_S=30
 INTERVAL_S=2
 
 if [[ ! -f docker-compose.yml ]]; then
-    echo "ERROR: docker-compose.yml not present — Unit 4 hasn't shipped yet." >&2
-    echo "       This script is a no-op until the nrds_mcps compose service exists." >&2
+    echo "ERROR: docker-compose.yml not present in ${WORKSHOP_ROOT}." >&2
     exit 1
 fi
 
@@ -34,7 +53,7 @@ fi
 echo "INFO: restarting compose service '${SERVICE}'"
 if ! docker compose restart "${SERVICE}"; then
     echo "FAIL: docker compose restart ${SERVICE} returned non-zero." >&2
-    echo "      Likely causes: service not running, syntax error in nrds_mcps source, image missing." >&2
+    echo "      Likely causes: service not running, syntax error in bind-mounted source, image missing." >&2
     echo "      Diagnose: docker compose logs --tail=50 ${SERVICE}" >&2
     exit 1
 fi
@@ -75,9 +94,8 @@ while (( SECONDS < deadline )); do
             ;;
         no-healthcheck)
             # Compose service has no HEALTHCHECK defined — fall back to a port probe.
-            # Until Unit 4 lands the healthcheck stanza this is the path most participants hit.
-            echo "WARN: service has no healthcheck defined; falling back to port probe on 9000"
-            if curl --max-time 2 -fsS http://localhost:9000/health >/dev/null 2>&1; then
+            echo "WARN: service has no healthcheck defined; falling back to port probe on ${FALLBACK_PORT}"
+            if curl --max-time 2 -fsS "http://localhost:${FALLBACK_PORT}/health" >/dev/null 2>&1; then
                 echo "OK: ${SERVICE} answers /health (port-probe fallback)"
                 exit 0
             fi

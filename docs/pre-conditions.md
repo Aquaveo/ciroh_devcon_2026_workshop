@@ -54,12 +54,23 @@ on the `feature/tethysdash-mcp-server` branch (or `main` if rebased by event
 time). Maintainer-validated to pass `pytest tethysapp/tethysdash/tests/mcp/`
 (the build-time gate in the devcontainer Dockerfile).
 
+**Required: must include commit `186fb37`** (PR #6 — the anonymous
+`GET /runtime-plugins/list/` endpoint that the standalone `tethysdash_mcps`
+server reads). Pre-`186fb37` SHAs cause the standalone's runtime plugin
+reads to return an empty list. Verify with:
+```bash
+git -C repos/tethysapp-tethys_dash merge-base --is-ancestor 186fb37 <TETHYSDASH_SHA> \
+    && echo "OK: includes runtime-plugins/list endpoint" \
+    || echo "FAIL: SHA predates 186fb37 — runtime registry reads will be empty"
+```
+
 **How to fill in:**
 - `TETHYSDASH_SHA`: `TBD` (40-char SHA, no `v` prefix)
 - URL: `https://github.com/Aquaveo/tethysapp-tethys_dash/commit/<sha>`
 - Date pinned: `TBD` (YYYY-MM-DD)
 - Reason for choosing this SHA: `TBD` (e.g., "passes mcp test suite + latest
   D8 chatbox MCP URL panel UX")
+- Includes `186fb37`: `TBD` (yes / no — required yes)
 
 **Blocking?** **Hard.** `scripts/setup.sh` reads this from `.env`; Unit 8's
 ghcr.io publish workflow checks out this SHA. Workshop cannot run without it.
@@ -118,6 +129,30 @@ transport. Answer branches (`step-N-answer`) branch from this SHA.
 - Reason for choosing this SHA: `TBD`
 
 **Blocking?** **Hard.** `scripts/setup.sh` reads this from `.env`.
+
+---
+
+## Q7d — tethysdash_mcps SHA pin (`TETHYSDASH_MCPS_SHA`)
+(Added 2026-05-11 with plan 008 — third-service integration.)
+
+**Status:** TBD
+
+**What's needed:** Known-good commit SHA on `Aquaveo/tethysdash_mcps`.
+Maintainer-validated to boot cleanly under the dev runbook in
+`mcp/tethysdash_mcps/README.md` and to be ancestor-equivalent to the
+`tethysdash_mcps` image tag pinned in `TETHYSDASH_MCPS_IMAGE_TAG` (so the
+bind-mounted source overlay matches the image's deps).
+
+**How to fill in:**
+- `TETHYSDASH_MCPS_SHA`: `TBD` (40-char SHA, no `v` prefix)
+- URL: `https://github.com/Aquaveo/tethysdash_mcps/commit/<sha>`
+- Date pinned: `TBD` (YYYY-MM-DD)
+- Reason for choosing this SHA: `TBD` (e.g., "tag `v0.2.0` cut from this SHA")
+- Image tag verified live on ghcr.io: `TBD` (yes / no — confirm via
+  `docker manifest inspect ghcr.io/aquaveo/tethysdash-mcps:<TETHYSDASH_MCPS_IMAGE_TAG>`)
+
+**Blocking?** **Hard.** `scripts/setup.sh` reads this from `.env`; the
+compose service consumes the image tag. Workshop cannot run without both.
 
 ---
 
@@ -195,8 +230,8 @@ must use a different strategy (e.g., a Tethys admin API endpoint, or accept
 
 Unit 9's checklist verifies every entry above is non-TBD before the
 "workshop-ready" sign-off. Soft-blocking items may carry an explicit
-"descoped/deferred" status; hard-blocking items (Q7, Q7b, Q8) must have
-concrete values.
+"descoped/deferred" status; hard-blocking items (Q7, Q7b, Q7c, Q7d, Q8) must
+have concrete values.
 
 ## Change log
 
@@ -206,3 +241,8 @@ concrete values.
   build flow was re-read — the React bundle ships from the committed
   `public/frontend/` dir, not from a webpack step. `setup.sh` now guards
   against bundle absence; this pre-condition guards against bundle drift.
+- 2026-05-11 — Q7d added + Q7 extended with the `186fb37` commit-inclusion
+  requirement: plan 008 introduces `tethysdash_mcps` as a third compose
+  service. Q7d pins its SHA + image tag; Q7's new bullet enforces that
+  `TETHYSDASH_SHA` includes the anonymous `/runtime-plugins/list/`
+  endpoint that the standalone needs.

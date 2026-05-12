@@ -2,10 +2,12 @@
 #
 # tunnel.sh — print the SSH -L command for the workshop tunnel.
 #
-# The chatbox in the participant's laptop browser reaches the MCP server on
-# `localhost:9000` (via the -L forward), NOT via compose-internal DNS. The
-# TethysDash UI sits behind `localhost:8000` (also via -L). Both ports must
-# be tunneled or the workshop's edit-and-test loop breaks.
+# The chatbox in the participant's laptop browser reaches the two MCP
+# servers on `localhost:9000` (nrds_mcps, data layer) and `localhost:9001`
+# (tethysdash_mcps, visualization layer) via the -L forwards, NOT via
+# compose-internal DNS. The TethysDash UI sits behind `localhost:8000`
+# (also via -L). All three ports must be tunneled or the workshop's
+# edit-and-test loop breaks.
 #
 # Usage:
 #   bash scripts/tunnel.sh                  # prompts for VM host if no env var
@@ -62,14 +64,16 @@ EOF
 fi
 
 # ServerAliveInterval keeps the tunnel up across NAT idle timeouts; without
-# it, the -L 9000 forward sometimes dies silently mid-workshop while -L 8000
-# survives (see README troubleshooting "chatbox can't reach MCP but UI works").
+# it, the -L 9000/9001 forwards sometimes die silently mid-workshop while
+# -L 8000 survives (see README troubleshooting "chatbox can't reach MCP but
+# UI works").
 cat <<EOF
 # Run this command in a NEW laptop terminal (NOT inside the devcontainer):
 
 ssh -o ServerAliveInterval=30 -o ServerAliveCountMax=3 \\
     -L 8000:localhost:8000 \\
     -L 9000:localhost:9000 \\
+    -L 9001:localhost:9001 \\
     ${host}
 
 # Then open http://localhost:8000 in your laptop browser.

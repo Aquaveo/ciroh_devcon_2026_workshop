@@ -5,7 +5,7 @@
 # Usage:
 #   bash scripts/reset-repos.sh <repo> [--force]
 #
-#   <repo> is one of: tethysapp-tethys_dash | nrds_mcps
+#   <repo> is one of: tethysapp-tethys_dash | nrds_mcps | tethysdash_mcps
 #
 # Behavior:
 #   - Validates <repo> name (refuses anything else).
@@ -29,11 +29,12 @@ cd "${WORKSHOP_ROOT}"
 usage() {
     cat >&2 <<EOF
 Usage: bash scripts/reset-repos.sh <repo> [--force]
-  <repo>   tethysapp-tethys_dash | nrds_mcps
+  <repo>   tethysapp-tethys_dash | nrds_mcps | tethysdash_mcps
   --force  destroy uncommitted work in the worktree and reset to upstream
 
 Examples:
   bash scripts/reset-repos.sh nrds_mcps
+  bash scripts/reset-repos.sh tethysdash_mcps --force
   bash scripts/reset-repos.sh tethysapp-tethys_dash --force
 EOF
 }
@@ -47,7 +48,7 @@ REPO="$1"
 FORCE="${2:-}"
 
 case "${REPO}" in
-    tethysapp-tethys_dash|nrds_mcps) ;;
+    tethysapp-tethys_dash|nrds_mcps|tethysdash_mcps) ;;
     *)
         echo "ERROR: invalid repo '${REPO}'." >&2
         usage
@@ -104,6 +105,7 @@ fi
 case "${REPO}" in
     tethysapp-tethys_dash) PIN_SHA="${TETHYSDASH_SHA:-}";;
     nrds_mcps)             PIN_SHA="${NRDS_MCPS_SHA:-}";;
+    tethysdash_mcps)       PIN_SHA="${TETHYSDASH_MCPS_SHA:-}";;
 esac
 
 if [[ -z "${PIN_SHA}" || "${PIN_SHA}" == "TBD" ]]; then

@@ -1,15 +1,21 @@
 # CIROH DevCon 2026 — TethysDash + MCP Workshop
 #
-# Two services on the default compose bridge network:
-#   tethysdash  — Django app + chatbox UI on 127.0.0.1:8000
-#   nrds_mcps   — FastMCP server on 127.0.0.1:9000
+# Three services on the default compose bridge network:
+#   tethysdash       — Django app + chatbox UI on 127.0.0.1:8000
+#   nrds_mcps        — FastMCP data-layer server on 127.0.0.1:9000
+#   tethysdash_mcps  — FastMCP visualization-layer server on 127.0.0.1:9001
 #
-# Service-to-service traffic uses compose-internal DNS (tethysdash, nrds_mcps).
-# Browser → MCP traffic goes via the laptop's SSH tunnel back to localhost:9000.
-# Both published ports are bound to 127.0.0.1 on the VM; SSH -L is the only path.
+# Service-to-service traffic uses compose-internal DNS (e.g., tethysdash_mcps
+# reaches the Django backend via http://tethysdash:8000/apps/tethysdash).
+# Browser → MCP traffic goes via the laptop's SSH tunnel back to localhost:9000
+# and localhost:9001. All three published ports are bound to 127.0.0.1 on the
+# VM; SSH -L is the only path.
 #
-# Plan reference: Units 3 + 4 in
+# Plan references:
 #   docs/plans/2026-05-11-001-feat-tethysdash-mcp-workshop-orchestration-plan.md
+#     (Units 3 + 4 — initial tethysdash + nrds_mcps services)
+#   docs/plans/2026-05-11-008-feat-workshop-add-tethysdash-mcps-plan.md
+#     (Unit 1 — tethysdash_mcps service)
 
 name: ciroh_devcon_2026_workshop
 
@@ -121,6 +127,77 @@ services:
         - "--spider"
         - "--tries=1"
         - "http://localhost:9000/health"
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 20s
+    restart: unless-stopped
+
+  # ------------------------------------------------------------------------
+  # tethysdash_mcps — standalone visualization-layer MCP server.
+  #
+  # Sibling of nrds_mcps. The ghcr.io/aquaveo/tethysdash-mcps image ships
+  # the FastMCP server with deps at /venv and the package at
+  # /app/tethysdash_mcp (verified against mcp/tethysdash_mcps/Dockerfile:
+  # WORKDIR /app, COPY tethysdash_mcp/ ./tethysdash_mcp/, USER mcp). The
+  # workshop bind-mounts repos/tethysdash_mcps/tethysdash_mcp into that
+  # exact path so participant edits override the baked-in copy. Restart
+  # picks them up; no pip install needed.
+  #
+  # Port 9001 here is the standalone, exposed on the VM at 127.0.0.1:9001
+  # and reachable from the participant's laptop via SSH -L 9001. The
+  # *embedded* MCP server inside the tethysdash container also binds 9001
+  # but is NEVER published (no `ports:` entry maps it), so there is no
+  # collision — the embedded server is unreachable from the browser, and
+  # the chatbox URL `http://localhost:9001/mcp` from the laptop resolves
+  # to the standalone via SSH tunnel.
+  #
+  # The two backend-touching tools (list_intake_plugins,
+  # add_dynamic_map_layer) call back to the tethysdash service via
+  # compose-internal DNS — see TETHYSDASH_BASE_URL below. The pinned
+  # TETHYSDASH_SHA must include commit 186fb37 (PR #6) which exposes the
+  # anonymous /runtime-plugins/list/ endpoint that the standalone reads.
+  # ------------------------------------------------------------------------
+  tethysdash_mcps:
+    image: ghcr.io/aquaveo/tethysdash-mcps:${TETHYSDASH_MCPS_IMAGE_TAG:-latest}
+    container_name: ciroh-devcon-tethysdash-mcps
+    # Same `user: root` exception as nrds_mcps — bind-mount writability for
+    # any tooling the participant might want to run inside the container.
+    # Per-VM isolation remains the security boundary.
+    user: root
+    volumes:
+      # Source overlay: shadow the image's baked-in tethysdash_mcp with the
+      # bind-mounted workshop clone. Image's /venv stays intact.
+      - ./repos/tethysdash_mcps/tethysdash_mcp:/app/tethysdash_mcp
+    environment:
+      MCP_HOST: "0.0.0.0"
+      MCP_PORT: "9001"
+      MCP_TRANSPORT: "streamable-http"
+      # HOME=/tmp matches the image default (read-only-fs safety: any lib
+      # touching $HOME/.cache or $HOME/.config gets a writable target).
+      # Explicit here so changing `user: root` doesn't restore /root.
+      HOME: "/tmp"
+      # Compose-internal DNS: the standalone reaches the Django backend at
+      # the `tethysdash` service name on its own port 8000. This is
+      # SERVER-TO-SERVER traffic on the compose network — separate from
+      # the BROWSER-TO-SERVER traffic that goes through the SSH tunnel.
+      # When unset, the standalone returns a `backend_not_configured`
+      # envelope for the two tools that need backend metadata.
+      TETHYSDASH_BASE_URL: "http://tethysdash:8000/apps/tethysdash"
+    ports:
+      # Bind to 127.0.0.1 on the VM: only reachable through SSH -L 9001.
+      - "127.0.0.1:9001:9001"
+    healthcheck:
+      # /health is a FastMCP custom_route at tethysdash_mcp/mcp_server.py.
+      # `wget` is the image's own HEALTHCHECK tool (Dockerfile line 39-44);
+      # `curl` is NOT installed. Same shape as the nrds_mcps healthcheck.
+      test:
+        - "CMD"
+        - "wget"
+        - "--quiet"
+        - "--spider"
+        - "--tries=1"
+        - "http://localhost:9001/health"
       interval: 5s
       timeout: 3s
       retries: 12

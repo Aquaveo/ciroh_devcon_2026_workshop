@@ -52,11 +52,13 @@ require_var() {
     return 0
 }
 
-# Both SHAs and both image tags are required.
-require_var TETHYSDASH_SHA       || exit 1
-require_var NRDS_MCPS_SHA        || exit 1
-require_var IMAGE_TAG            || exit 1
-require_var NRDS_MCPS_IMAGE_TAG  || exit 1
+# All three SHAs and three image tags are required.
+require_var TETHYSDASH_SHA            || exit 1
+require_var NRDS_MCPS_SHA             || exit 1
+require_var TETHYSDASH_MCPS_SHA       || exit 1
+require_var IMAGE_TAG                 || exit 1
+require_var NRDS_MCPS_IMAGE_TAG       || exit 1
+require_var TETHYSDASH_MCPS_IMAGE_TAG || exit 1
 
 # ---------------------------------------------------------------------------
 # 2. Clone-or-pull the two repos. Per-repo strict failure.
@@ -114,8 +116,9 @@ clone_or_pull() {
 
 mkdir -p repos
 
-clone_or_pull tethysapp-tethys_dash "${TETHYSDASH_SHA}" || exit 1
-clone_or_pull nrds_mcps             "${NRDS_MCPS_SHA}"  || exit 1
+clone_or_pull tethysapp-tethys_dash "${TETHYSDASH_SHA}"       || exit 1
+clone_or_pull nrds_mcps             "${NRDS_MCPS_SHA}"        || exit 1
+clone_or_pull tethysdash_mcps       "${TETHYSDASH_MCPS_SHA}"  || exit 1
 
 # ---------------------------------------------------------------------------
 # 2b. Bundle-presence guard (Q7c in docs/pre-conditions.md).
