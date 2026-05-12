@@ -6,8 +6,11 @@
 #
 # Steps:
 #   1. Read pinned SHAs + image tag from .env (fallback: .env.example).
-#   2. Clone-or-pull Aquaveo/tethysapp-tethys_dash and Aquaveo/nrds_mcps into
-#      ./repos/, then check out the pinned SHAs (detached HEAD).
+#   2. Clone-or-pull the three consumed repos into ./repos/ and check out the
+#      pinned SHAs (detached HEAD). Source remotes are per-repo:
+#        tethysplatform/tethysapp-tethys_dash  (canonical upstream)
+#        Aquaveo/nrds_mcps
+#        Aquaveo/tethysdash_mcps
 #   3. Pull ghcr.io/aquaveo/ciroh-devcon-2026:${IMAGE_TAG}; on failure,
 #      fall back to docker compose build tethysdash (~10-20 min on weak VMs).
 #
@@ -64,10 +67,23 @@ require_var TETHYSDASH_MCPS_IMAGE_TAG || exit 1
 # 2. Clone-or-pull the two repos. Per-repo strict failure.
 # ---------------------------------------------------------------------------
 clone_or_pull() {
-    local repo_name="$1"        # tethysapp-tethys_dash or nrds_mcps
+    local repo_name="$1"        # tethysapp-tethys_dash | nrds_mcps | tethysdash_mcps
     local sha="$2"
     local target="repos/${repo_name}"
-    local url="https://github.com/Aquaveo/${repo_name}.git"
+
+    # Per-repo source URL. tethysapp-tethys_dash lives in the canonical
+    # tethysplatform org upstream; the two MCP servers are Aquaveo-owned.
+    # An unknown repo name is a programming error in setup.sh itself
+    # (callers below are an allowlist), so fail loud.
+    local url
+    case "${repo_name}" in
+        tethysapp-tethys_dash) url="https://github.com/tethysplatform/${repo_name}.git" ;;
+        nrds_mcps|tethysdash_mcps) url="https://github.com/Aquaveo/${repo_name}.git" ;;
+        *)
+            echo "FAIL: clone_or_pull called with unknown repo '${repo_name}'." >&2
+            return 1
+            ;;
+    esac
 
     # Half-clone detection: dir exists but no .git inside → wipe and re-clone.
     if [[ -d "${target}" && ! -d "${target}/.git" ]]; then

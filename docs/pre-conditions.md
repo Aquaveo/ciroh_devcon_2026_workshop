@@ -49,10 +49,11 @@ No action required.
 
 **Status:** TBD
 
-**What's needed:** Known-good commit SHA on `Aquaveo/tethysapp-tethys_dash`,
-on the `feature/tethysdash-mcp-server` branch (or `main` if rebased by event
-time). Maintainer-validated to pass `pytest tethysapp/tethysdash/tests/mcp/`
-(the build-time gate in the devcontainer Dockerfile).
+**What's needed:** Known-good commit SHA on
+`tethysplatform/tethysapp-tethys_dash`, on the `feature/tethysdash-mcp-server`
+branch (or `main` if rebased by event time). Maintainer-validated to pass
+`pytest tethysapp/tethysdash/tests/mcp/` (the build-time gate in the
+devcontainer Dockerfile).
 
 **Required: must include commit `186fb37`** (PR #6 — the anonymous
 `GET /runtime-plugins/list/` endpoint that the standalone `tethysdash_mcps`
@@ -66,7 +67,7 @@ git -C repos/tethysapp-tethys_dash merge-base --is-ancestor 186fb37 <TETHYSDASH_
 
 **How to fill in:**
 - `TETHYSDASH_SHA`: `TBD` (40-char SHA, no `v` prefix)
-- URL: `https://github.com/Aquaveo/tethysapp-tethys_dash/commit/<sha>`
+- URL: `https://github.com/tethysplatform/tethysapp-tethys_dash/commit/<sha>`
 - Date pinned: `TBD` (YYYY-MM-DD)
 - Reason for choosing this SHA: `TBD` (e.g., "passes mcp test suite + latest
   D8 chatbox MCP URL panel UX")
