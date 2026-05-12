@@ -47,7 +47,7 @@ No action required.
 
 ## Q7 — TethysDash SHA pin (`TETHYSDASH_SHA`)
 
-**Status:** TBD
+**Status:** RESOLVED 2026-05-12.
 
 **What's needed:** Known-good commit SHA on
 `tethysplatform/tethysapp-tethys_dash`, on the `feature/tethysdash-mcp-server`
@@ -65,13 +65,16 @@ git -C repos/tethysapp-tethys_dash merge-base --is-ancestor 186fb37 <TETHYSDASH_
     || echo "FAIL: SHA predates 186fb37 — runtime registry reads will be empty"
 ```
 
-**How to fill in:**
-- `TETHYSDASH_SHA`: `TBD` (40-char SHA, no `v` prefix)
-- URL: `https://github.com/tethysplatform/tethysapp-tethys_dash/commit/<sha>`
-- Date pinned: `TBD` (YYYY-MM-DD)
-- Reason for choosing this SHA: `TBD` (e.g., "passes mcp test suite + latest
-  D8 chatbox MCP URL panel UX")
-- Includes `186fb37`: `TBD` (yes / no — required yes)
+**Pinned values:**
+- `TETHYSDASH_SHA`: `29b7bc847fcd3dc09a2d165a8cb0b1cbf087e2af`
+- URL: https://github.com/tethysplatform/tethysapp-tethys_dash/commit/29b7bc847fcd3dc09a2d165a8cb0b1cbf087e2af
+- Date pinned: 2026-05-12
+- Reason for choosing this SHA: tip of `feature/tethysdash-mcp-server`
+  on `tethysplatform/tethysapp-tethys_dash` as of 2026-05-12; includes
+  PR #122 (multi-stage devcontainer Dockerfile that bakes the React
+  bundle at image build), which closes Q7c entirely.
+- Includes `186fb37`: yes (verified via `git merge-base --is-ancestor
+  186fb37 29b7bc8` 2026-05-12).
 
 **Blocking?** **Hard.** `scripts/setup.sh` reads this from `.env`; Unit 8's
 ghcr.io publish workflow checks out this SHA. Workshop cannot run without it.
@@ -79,9 +82,27 @@ ghcr.io publish workflow checks out this SHA. Workshop cannot run without it.
 ---
 
 ## Q7c — TethysDash bundle freshness at the pinned SHA
-(Added 2026-05-11 after surfacing during VM smoke.)
+(Added 2026-05-11 after surfacing during VM smoke;
+ **closed 2026-05-12 by PR #122** — see Status below.)
 
-**Status:** TBD
+**Status:** **CLOSED** 2026-05-12.
+
+**Closure reason:** PR #122 (commit `29b7bc8`) on
+`tethysplatform/tethysapp-tethys_dash` replaced the Python-only devcontainer
+Dockerfile with a multi-stage build. A `node:20-slim frontend-builder`
+stage now runs `npm install` + `npm run build` at image-build time, and
+the final stage does `COPY --from=frontend-builder ... public/frontend/`
+to overlay the freshly-built bundle. The committed `public/frontend/`
+state at the pinned SHA no longer affects what the running container
+serves — the image build regenerates it.
+
+Q7c is preserved here as institutional record. Future pins that include
+`29b7bc8` or any descendant on `feature/tethysdash-mcp-server` (or any
+branch that has merged the multi-stage Dockerfile) inherit the fix.
+
+If a future pin somehow regresses the Dockerfile to a Python-only build
+(e.g., a downstream consumer who copies the old Dockerfile shape), the
+Q7c gate below becomes relevant again.
 
 **What's needed:** Confirm `tethysapp/tethysdash/public/frontend/` at
 `TETHYSDASH_SHA` reflects the current React source. The devcontainer
@@ -231,8 +252,9 @@ must use a different strategy (e.g., a Tethys admin API endpoint, or accept
 
 Unit 9's checklist verifies every entry above is non-TBD before the
 "workshop-ready" sign-off. Soft-blocking items may carry an explicit
-"descoped/deferred" status; hard-blocking items (Q7, Q7b, Q7c, Q7d, Q8) must
-have concrete values.
+"descoped/deferred" status; hard-blocking items (Q7b, Q7d, Q8) must have
+concrete values. Q7 + Q7c are resolved/closed as of 2026-05-12 (see
+respective sections).
 
 ## Change log
 
@@ -247,3 +269,9 @@ have concrete values.
   service. Q7d pins its SHA + image tag; Q7's new bullet enforces that
   `TETHYSDASH_SHA` includes the anonymous `/runtime-plugins/list/`
   endpoint that the standalone needs.
+- 2026-05-12 — Q7 resolved with concrete SHA pin
+  `29b7bc847fcd3dc09a2d165a8cb0b1cbf087e2af` (tip of
+  `feature/tethysdash-mcp-server` on `tethysplatform/tethysapp-tethys_dash`).
+  Q7c closed by the same SHA — PR #122 makes the devcontainer Dockerfile
+  multi-stage with a Node frontend-builder stage, eliminating the
+  bundle-vs-source staleness failure mode entirely.

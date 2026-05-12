@@ -137,32 +137,22 @@ clone_or_pull nrds_mcps             "${NRDS_MCPS_SHA}"        || exit 1
 clone_or_pull tethysdash_mcps       "${TETHYSDASH_MCPS_SHA}"  || exit 1
 
 # ---------------------------------------------------------------------------
-# 2b. Bundle-presence guard (Q7c in docs/pre-conditions.md).
+# Removed 2026-05-12: bundle-presence guard.
 #
-# The TethysDash devcontainer Dockerfile is Python-only (python:3.11-slim, no
-# Node/webpack). It does `COPY . .`, so the React bundle that ends up in the
-# image is exactly what's committed under tethysapp/tethysdash/public/frontend/
-# at TETHYSDASH_SHA. The repo convention is a `chore(bundle): rebuild ...`
-# commit after every webpack change. If the pinned SHA predates that commit
-# (or sits on a feature branch where the bundle was never updated), Django
-# silently serves stale or absent React UI.
-#
-# This guard catches the worst case — bundle dir empty / main.js missing —
-# at setup time, so the failure surfaces here instead of "blank page in the
-# browser after 90s boot". It does NOT detect JSX-vs-bundle drift (a fresh-
-# looking dir whose chunks predate the committed JSX); that's what Q7c's
-# manual `npm run build && git status` check is for.
+# The previous version of this section checked that
+# tethysapp/tethysdash/public/frontend/main.js existed at TETHYSDASH_SHA
+# under the assumption that the devcontainer Dockerfile was Python-only
+# and shipped the committed bundle as-is via `COPY . .` (Q7c in
+# docs/pre-conditions.md). PR #122 on tethysplatform/tethysapp-tethys_dash
+# (commit 29b7bc8, 2026-05-12) replaced that Dockerfile with a multi-
+# stage build whose node:20-slim builder stage runs `npm run build` and
+# overlays the fresh bundle into the runtime stage. With the new
+# Dockerfile, the committed source state of public/frontend/ no longer
+# determines what the image serves, so a bundle-presence guard on the
+# source tree would produce false positives on SHAs that legitimately
+# don't commit a bundle. Q7c is documented as closed; this guard is
+# retired.
 # ---------------------------------------------------------------------------
-TETHYSDASH_BUNDLE_ENTRY="repos/tethysapp-tethys_dash/tethysapp/tethysdash/public/frontend/main.js"
-if [[ ! -s "${TETHYSDASH_BUNDLE_ENTRY}" ]]; then
-    echo "FAIL: ${TETHYSDASH_BUNDLE_ENTRY} is missing or empty at TETHYSDASH_SHA." >&2
-    echo "      The devcontainer image ships the committed React bundle as-is" >&2
-    echo "      (no Node/webpack at build time). Pin a SHA on or right after a" >&2
-    echo "      'chore(bundle): rebuild ...' commit, or rebuild + commit and repin." >&2
-    echo "      See docs/pre-conditions.md Q7c." >&2
-    exit 1
-fi
-echo "OK: TethysDash bundle present at pinned SHA (main.js found)."
 
 # ---------------------------------------------------------------------------
 # 3. Pull-or-build the TethysDash workshop image. Compose's `image:` + `build:`
