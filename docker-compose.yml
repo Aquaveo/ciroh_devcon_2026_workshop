@@ -96,11 +96,27 @@ services:
     # `docker compose exec nrds_mcps python -c "..."`). Acceptable per
     # plan R4: per-VM isolation is the security boundary, not in-container uid.
     user: root
+    # Override the image's `ENTRYPOINT ["python", "-m", "nextgen_mcp.mcp_server"]`.
+    # The workshop launches the server via our hot-reload wrapper so participant
+    # edits trigger an automatic restart (watchfiles + bind-mount inotify).
+    # `entrypoint: []` is required because compose's `command:` is passed as
+    # arguments to ENTRYPOINT, not as a replacement, unless ENTRYPOINT is reset.
+    # Plan: docs/plans/2026-05-12-001-feat-workshop-mcp-hot-reload-plan.md
+    entrypoint: []
+    command:
+      - python
+      - /workshop-scripts/run-mcp-with-reload.py
+      - nextgen_mcp.mcp_server
+      - /app/nextgen_mcp
     volumes:
       # Source overlay: shadow the image's baked-in nextgen_mcp with the
       # bind-mounted workshop clone. Image's /venv stays intact (deps
       # available); only the package source changes.
       - ./repos/nrds_mcps/nextgen_mcp:/app/nextgen_mcp
+      # Workshop scripts mount (read-only) — exposes run-mcp-with-reload.py
+      # to the container's `command:` invocation. ro because the launcher
+      # must not be mutated from inside the container.
+      - ./scripts:/workshop-scripts:ro
     environment:
       MCP_HOST: "0.0.0.0"
       MCP_PORT: "9000"
@@ -110,6 +126,11 @@ services:
       # explicit here so changing `user: root` doesn't accidentally restore
       # /root and break the DuckDB cache path.
       HOME: "/tmp"
+      # watchfiles inotify is the default. If a participant VM SKU's
+      # storage driver doesn't propagate file events through the bind-mount,
+      # set WATCHFILES_FORCE_POLLING=true here (and accept the idle-CPU
+      # cost) to recover. Pre-flight in plan-008 Unit 6 confirms before
+      # the workshop ships.
     ports:
       - "127.0.0.1:9000:9000"
     healthcheck:
@@ -165,10 +186,22 @@ services:
     # any tooling the participant might want to run inside the container.
     # Per-VM isolation remains the security boundary.
     user: root
+    # Same entrypoint override as nrds_mcps — see that service for full
+    # rationale. The image's ENTRYPOINT is
+    # `["python", "-m", "tethysdash_mcp.mcp_server"]`; the launcher wraps it
+    # in watchfiles for hot-reload on bind-mounted source.
+    entrypoint: []
+    command:
+      - python
+      - /workshop-scripts/run-mcp-with-reload.py
+      - tethysdash_mcp.mcp_server
+      - /app/tethysdash_mcp
     volumes:
       # Source overlay: shadow the image's baked-in tethysdash_mcp with the
       # bind-mounted workshop clone. Image's /venv stays intact.
       - ./repos/tethysdash_mcps/tethysdash_mcp:/app/tethysdash_mcp
+      # Workshop scripts mount (read-only) — same as nrds_mcps.
+      - ./scripts:/workshop-scripts:ro
     environment:
       MCP_HOST: "0.0.0.0"
       MCP_PORT: "9001"

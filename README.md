@@ -38,6 +38,12 @@ This repo is **under construction** for the 2026 Summit. Tracking:
 - [x] Unit 5 — README documents two-MCP-server configuration
 - [ ] Unit 6 — Dry-run on NSF ACCESS VM with three services
 
+**Plan 2026-05-12-001** — MCP servers run with `fastmcp` hot-reload:
+
+- [x] Unit 1 — `scripts/run-mcp-with-reload.py` launcher + compose `entrypoint:` + `command:` overrides on both MCP services
+- [x] Unit 2 — Polling-fallback troubleshooting note in README
+- [x] Unit 3 — README quick-start leads with hot-reload, `restart-mcp.sh` demoted to troubleshooting
+
 See pre-conditions: [`docs/pre-conditions.md`](docs/pre-conditions.md).
 
 ## Quick start (preview — full version in Unit 5)
@@ -63,7 +69,31 @@ bash scripts/tunnel.sh           # prints the command; copy-paste in another ter
 #       http://localhost:9000/mcp    # nrds_mcps  (data-layer tools)
 #       http://localhost:9001/mcp    # tethysdash_mcps  (visualization-layer tools)
 #    Both URLs persist in localStorage per dashboard; you only set them once.
+
+# 7. Edit any MCP tool source file and just save:
+#       vim repos/nrds_mcps/nextgen_mcp/tools/<some_tool>.py     # or
+#       vim repos/tethysdash_mcps/tethysdash_mcp/<some_module>.py
+#    The server auto-restarts in ~1-2 seconds (watchfiles + inotify on the
+#    bind-mount). Then refresh the browser tab to force chatbox-core to
+#    re-probe the tool catalog.
 ```
+
+## Edit loop
+
+Both MCP servers run under a `fastmcp`-based hot-reload wrapper
+(`scripts/run-mcp-with-reload.py`). The edit-and-test loop is:
+
+| Step | Action |
+|------|--------|
+| 1 | Edit a file under `repos/nrds_mcps/nextgen_mcp/` or `repos/tethysdash_mcps/tethysdash_mcp/`. |
+| 2 | Save. `watchfiles` detects the change through the bind-mount and respawns the FastMCP process within 1–2 seconds. |
+| 3 | Refresh the browser tab. The chatbox re-probes the MCP server and picks up the change (renamed tools, changed schemas, modified return envelopes). |
+
+If your edit introduces an import-time syntax error, the server will
+crash on respawn. The fix is the same: re-edit the file and save again
+— the watcher is still alive and will retry. Use
+`docker compose logs --tail=30 nrds_mcps` (or `tethysdash_mcps`) to see
+the traceback while diagnosing.
 
 ## Repository layout
 
@@ -116,13 +146,72 @@ baked-in copies; `bash scripts/restart-mcp.sh <service>` picks them up.
   `/runtime-plugins/sync/` with the user's session). The standalone reads
   the resulting registry over HTTP on its next tool call — no restart
   needed.
-- **Tool list cached by chatbox-core.** After `restart-mcp.sh tethysdash_mcps`
-  or `restart-mcp.sh nrds_mcps`, the chatbox may show a stale tool list
+- **Tool list cached by chatbox-core.** After an MCP server auto-restart
+  (or a manual `restart-mcp.sh`), the chatbox may show a stale tool list
   until the next probe interval. Refreshing the browser tab forces a
   re-probe.
 - **No CORS / auth on either MCP server.** Per-VM isolation + 127.0.0.1
   binding + SSH tunnel are the security boundary. Do NOT expose either
   port to a non-loopback network.
+
+## Troubleshooting
+
+### Hot-reload didn't fire after I saved a file
+
+In rare cases, the participant VM's storage driver doesn't propagate
+inotify events through Docker bind-mounts. Symptom: editing
+`repos/nrds_mcps/nextgen_mcp/<file>.py` and saving produces no
+"reload"/"detected changes" log line in `docker compose logs nrds_mcps`,
+and the tool behavior doesn't update.
+
+Quick check:
+```bash
+docker compose logs -f nrds_mcps &
+sleep 1; touch repos/nrds_mcps/nextgen_mcp/__init__.py; sleep 4
+kill %1 2>/dev/null
+# Expect: a "watching" / "reload" / "detected" line in the captured output.
+```
+
+If no event fires, add the polling fallback to the affected service in
+`docker-compose.yml`:
+
+```yaml
+nrds_mcps:
+  environment:
+    WATCHFILES_FORCE_POLLING: "true"
+```
+
+Then `docker compose up -d nrds_mcps` to re-apply. Polling burns a small
+amount of idle CPU (still fine on the workshop VM SKU); inotify is the
+default specifically because it avoids that cost.
+
+### Manual restart fallback
+
+If a container is wedged (process running but unresponsive, healthcheck
+stuck unhealthy, hot-reload not respawning after an import crash), use
+the manual restart script as an escape hatch:
+
+```bash
+bash scripts/restart-mcp.sh nrds_mcps          # or
+bash scripts/restart-mcp.sh tethysdash_mcps
+```
+
+It runs `docker compose restart <service>` and polls the healthcheck
+until healthy, printing the last 20 log lines on success or 50 on
+failure. The hot-reload watcher restarts automatically with the
+container, so you keep the auto-restart-on-save behavior afterward.
+
+### Stale UI after a tethysapp-tethys_dash edit
+
+Editing `repos/tethysapp-tethys_dash/reactapp/...` will NOT show up in
+the running app: the workshop image ships the committed React bundle as
+a static artifact and the devcontainer has no Node/webpack to rebuild
+it. See
+[`docs/solutions/best-practices/tethysdash-bundle-shipped-via-copy-2026-05-11.md`](../../docs/solutions/best-practices/tethysdash-bundle-shipped-via-copy-2026-05-11.md)
+in the workspace for the full mechanism. The workshop's pedagogical
+focus is MCP-tool editing (which IS hot-reloadable); React editing
+needs an out-of-band `npm run build` + bundle commit, which is
+intentionally out of scope here.
 
 ## License
 
