@@ -45,6 +45,7 @@ Plan reference:
   docs/plans/2026-05-12-001-feat-workshop-mcp-hot-reload-plan.md
 """
 
+import asyncio
 import sys
 from pathlib import Path
 
@@ -96,7 +97,13 @@ def main() -> None:
         flush=True,
     )
 
-    run_with_reload(cmd, reload_dirs=[watch_dir])
+    # `run_with_reload` is an async coroutine in fastmcp.cli.run (verified
+    # against the RuntimeWarning that fired when this was called sync on
+    # the workshop VM 2026-05-12). Drive it with asyncio.run so the
+    # watchfiles loop actually executes instead of returning a never-
+    # awaited coroutine and exiting cleanly (which sent the container
+    # into a restart-loop with no FastMCP listener bound).
+    asyncio.run(run_with_reload(cmd, reload_dirs=[watch_dir]))
 
 
 if __name__ == "__main__":
