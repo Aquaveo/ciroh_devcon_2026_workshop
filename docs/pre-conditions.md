@@ -66,6 +66,43 @@ ghcr.io publish workflow checks out this SHA. Workshop cannot run without it.
 
 ---
 
+## Q7c — TethysDash bundle freshness at the pinned SHA
+(Added 2026-05-11 after surfacing during VM smoke.)
+
+**Status:** TBD
+
+**What's needed:** Confirm `tethysapp/tethysdash/public/frontend/` at
+`TETHYSDASH_SHA` reflects the current React source. The devcontainer
+Dockerfile is Python-only (`python:3.11-slim`, no Node) and does `COPY . .`,
+so the bundle that ships in the image is whatever is committed at the SHA.
+If the SHA points to a commit where JSX changed but `npm run build` was
+never run + committed, Django serves stale React UI silently.
+
+Repo convention: a `chore(bundle): rebuild ...` (or `chore(frontend):
+rebuild bundle ...`) commit follows every webpack source change. Pin SHAs
+on or immediately after such a commit, or use the `release` skill which
+bundles the rebuild step.
+
+**How to fill in:**
+- Pinned SHA is bundle-fresh: `TBD` (yes / no)
+- Verification command run:
+  ```bash
+  # On the maintainer's workstation, AT the candidate SHA:
+  cd tethysapp-tethys_dash && git checkout <TETHYSDASH_SHA>
+  npm ci && npm run build
+  git status --short tethysapp/tethysdash/public/frontend/
+  # Expected: clean (no diff). If diff appears, SHA is stale → rebuild + commit + repin.
+  ```
+- Date verified: `TBD` (YYYY-MM-DD)
+- If verified at a different SHA than `TETHYSDASH_SHA`: explain. `TBD`
+
+**Blocking?** **Hard.** `setup.sh` now refuses to proceed if `public/frontend/
+main.js` is absent after checkout (catches the most extreme failure mode:
+SHA where the bundle dir was never populated). It does NOT catch JSX-vs-
+bundle drift — only this pre-condition does.
+
+---
+
 ## Q7b — nrds_mcps SHA pin (`NRDS_MCPS_SHA`) — added in pass-1 plan review
 
 **Status:** TBD
@@ -164,3 +201,8 @@ concrete values.
 ## Change log
 
 - 2026-05-11 — File created (Unit 0 scaffolding, pass-1 plan review baseline).
+- 2026-05-11 — Q7c added: bundle-freshness gate at TethysDash SHA pin.
+  Surfaced during VM smoke after the devcontainer Dockerfile's Python-only
+  build flow was re-read — the React bundle ships from the committed
+  `public/frontend/` dir, not from a webpack step. `setup.sh` now guards
+  against bundle absence; this pre-condition guards against bundle drift.
