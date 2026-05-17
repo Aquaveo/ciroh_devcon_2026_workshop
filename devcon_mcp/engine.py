@@ -4,7 +4,7 @@ from starlette.responses import JSONResponse
 
 import logging
 
-LOGGER = logging.getLogger("nextgen_mcp.mcp_server")
+LOGGER = logging.getLogger("devcon_mcp")
 
 mcp = FastMCP("DevCon2026 NRDS MCP")
 
