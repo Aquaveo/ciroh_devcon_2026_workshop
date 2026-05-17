@@ -1,28 +1,35 @@
-from .engine import mcp
+"""MCP prompts for the DevCon workshop.
+
+A prompt is a reusable template the LLM can request by name and parameters.
+The body returned here becomes the user-side message the LLM will respond to.
+"""
+
 from typing_extensions import Annotated
 from pydantic import Field
-from .validations import CONFIGURATION_HINT, DATE_HINT, FORECAST_HINT, CYCLE_HINT, VPU_HINT
+
+from .engine import mcp
+from .validations import (
+    CONFIGURATION_HINT,
+    DATE_HINT,
+    FORECAST_HINT,
+    CYCLE_HINT,
+    VPU_HINT,
+)
 
 
 @mcp.prompt
 def list_output_files(
     configuration: Annotated[str, Field(description=CONFIGURATION_HINT)],
     date: Annotated[str, Field(description=DATE_HINT)],
-    forecast: Annotated[
-        str, Field(description=FORECAST_HINT)
-    ],
+    forecast: Annotated[str, Field(description=FORECAST_HINT)],
     cycle: Annotated[str, Field(description=CYCLE_HINT)],
     vpu: Annotated[str, Field(description=VPU_HINT)],
 ) -> str:
-    """List the available output files for a given NRDS configuration, date, forecast,
-    cycle, and VPU.
-    """
-    
-    return (
-        f"you need to do this prompt using . . ."
-    )
-    ## the following is the answer fir the prompt template
-    # return (
-    #     f"List the available output files for the {configuration} configuration on {date}, "
-    #     f"{forecast} forecast, cycle {cycle}, vpu {vpu}."
-    # )
+    """Ask the LLM to list available output files for a selector."""
+    # === CHALLENGE 3 ===
+    # Two lines. Return an f-string that asks the LLM to list the output files
+    # for the given configuration/date/forecast/cycle/vpu. Use the parameter
+    # names as f-string placeholders.
+    # Answer is in README.md under "Answers > 3".
+    return "TODO: write the prompt template"
+    # === END CHALLENGE 3 ===
