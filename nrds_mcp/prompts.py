@@ -17,9 +17,12 @@ def list_output_files(
     """List the available output files for a given NRDS configuration, date, forecast,
     cycle, and VPU.
     """
-
-    ## the following is the answer fir the prompt template
+    
     return (
-        f"List the available output files for the {configuration} model on {date}, "
-        f"{forecast} forecast, cycle {cycle}, vpu {vpu}."
+        f"you need to do this prompt using . . ."
     )
+    ## the following is the answer fir the prompt template
+    # return (
+    #     f"List the available output files for the {configuration} configuration on {date}, "
+    #     f"{forecast} forecast, cycle {cycle}, vpu {vpu}."
+    # )
