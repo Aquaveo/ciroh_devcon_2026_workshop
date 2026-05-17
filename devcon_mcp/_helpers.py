@@ -1,3 +1,12 @@
+"""Internal helpers for the DevCon MCP workshop.
+
+You do NOT need to read or edit this file to complete the workshop.
+
+This file packages S3 access, DuckDB query setup, date normalization,
+and error-envelope helpers behind a small surface. The three challenge
+files (logic.py, tools.py, prompts.py) import from here.
+"""
+
 from datetime import datetime
 from typing import Any, Dict, Optional
 import fsspec
