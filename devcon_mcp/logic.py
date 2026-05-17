@@ -50,20 +50,16 @@ def list_available_output_files(
         s3_dir += f"/{vpu}/{NGEN_RUN_PREFIX}"
 
     try:
-        ## The following is what needs to be done by the user
         fs = s3_filesystem()
         files = fs.ls(s3_dir, detail=False)
         files = [f for f in files if f.lower().endswith(".parquet") or f.lower().endswith(".nc")]
 
-        ## Challenge 1A
-        ## Sort the files, and return a list of dicts with name and path
-        ## save the diles on the varaible "items"
-        ## if you need an answer you can go to answers on the  README 
-        # this is the answer for the answer 
-        # files = sorted(files)
-        # items = [{"name": f.split("/")[-1], "path": f} for f in files]
-        
-        items=[]
+        # === CHALLENGE 1A ===
+        # Two lines. Sort `files`, then turn each entry into a
+        # {"name": ..., "path": ...} record and store the list in `items`.
+        # Answer is in README.md under "Answers > 1A".
+        items = []
+        # === END CHALLENGE 1A ===
 
         logger.info(f"Found {len(items)} files in S3 directory: {s3_dir}")
         return success_payload(
