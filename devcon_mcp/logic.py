@@ -81,80 +81,37 @@ def list_available_output_files(
     
 
 def query_output_file_from_output_selector(
-    configuration,
-    date,
-    forecast,
-    cycle,
-    vpu,
-    query,
+    configuration: str,
+    date: str,
+    forecast: str,
+    cycle: str,
+    vpu: str,
+    query: str,
     ensemble: Optional[str] = None,
     file_name: Optional[str] = None,
     index: Optional[int] = 0,
 ) -> Dict:
-    """Resolve an output file by selector and run a raw query against the selected parquet or netcdf file."""
+    """Resolve one NRDS output file by selector, then run a DuckDB query against it.
 
+    Conceptually this is two steps:
+      1. resolve a single file from the selector  -> get_output_file(...)
+      2. run the SQL query against that file      -> query_output_file(...)
+    """
     logger.info(
-        "Received request to query output file from selector with "
-        "configuration=%s date=%s forecast=%s cycle=%s vpu=%s ensemble=%s file_name=%s index=%s query=%s",
-        configuration,
-        date,
-        forecast,
-        cycle,
-        vpu,
-        ensemble,
-        file_name,
-        index,
-        query,
+        "query_output_file_from_output_selector configuration=%s date=%s forecast=%s "
+        "cycle=%s vpu=%s ensemble=%s file_name=%s index=%s",
+        configuration, date, forecast, cycle, vpu, ensemble, file_name, index,
     )
 
-    resolved = get_output_file(
-        configuration=configuration,
-        date=date,
-        forecast=forecast,
-        cycle=cycle,
-        vpu=vpu,
-        file_name=file_name,
-        index=None if file_name is not None else (0 if index is None else index),
-        ensemble=ensemble,
-    )
-
-    if not isinstance(resolved, dict):
-        return error_payload(
-            "execution_error",
-            "Unexpected response while resolving output file.",
-        )
-
-    if resolved.get("ok") is False:
-        return resolved
-
-    selected = resolved.get("selected")
-    if not selected:
-        return error_payload(
-            "not_found",
-            "No output file matched the selector.",
-            dir=resolved.get("dir"),
-            count=resolved.get("count", 0),
-            selected=None,
-        )
-
-    selected_path = str((selected or {}).get("path") or "").strip()
-    if not selected_path:
-        return error_payload(
-            "not_found",
-            "Resolved output file does not include a path.",
-            dir=resolved.get("dir"),
-            count=resolved.get("count", 0),
-            selected=selected,
-        )
-
-    query_result = query_output_file(
-        s3_url=selected_path,
-        query=query,
-    )
-
-    if isinstance(query_result, dict):
-        query_result.setdefault("dir", resolved.get("dir"))
-        query_result.setdefault("count", resolved.get("count"))
-        query_result.setdefault("selected", selected)
-
-    return query_result
+    # === CHALLENGE 1B ===
+    # Two lines. Resolve the file with get_output_file(...), then call
+    # query_output_file(s3_url=..., query=query) on the resolved path.
+    #
+    # Hint: get_output_file returns {"ok": True, "selected": {"path": "..."}, ...}
+    # when it succeeds. If get_output_file returned ok=False, return it directly
+    # so the LLM sees the structured error envelope.
+    #
+    # Answer is in README.md under "Answers > 1B".
+    resolved = success_payload(selected=None)
+    return resolved
+    # === END CHALLENGE 1B ===
