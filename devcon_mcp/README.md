@@ -1,7 +1,7 @@
 # DevCon 2026 — MCP Server Workshop
 
 In this workshop you build a small MCP (Model Context Protocol) server that
-exposes NRDS hydrology data to an LLM. You will write **six lines of code**
+exposes NRDS hydrology data to an LLM. You will write **eight lines of code**
 spread across three files. Everything else is already wired for you.
 
 ## What is MCP
@@ -12,7 +12,8 @@ schema; the LLM reads it; the LLM picks tools and fills in arguments.
 
 This workshop server publishes:
 - 2 tools to list / query NRDS parquet+netcdf output files on S3
-- 1 prompt template that asks the LLM to list files for a selector
+- 2 prompt templates — one to list files for a selector, one to run a query
+  against a selected file
 
 ## File map
 
@@ -41,6 +42,16 @@ curl http://localhost:9003/health
 
 The MCP endpoint itself is at `http://localhost:9003/mcp` (Streamable HTTP).
 
+**Watch the terminal where the server is running** — each tool call prints a
+log line, and the data-layer code prints what S3 returned before Challenge 1A's
+shaping runs. When something doesn't feel right, this is the first place to look:
+
+- *Did the LLM hit my tool?* → look for `Tool ... called` lines (from `tools.py`).
+- *Did S3 actually return files?* → look for `S3 listing returned N raw paths`
+  (from `logic.py`, just before Challenge 1A).
+- *Did my selector resolve a file?* → look for `query_output_file_from_output_selector`
+  followed by a downstream DuckDB log line.
+
 ## The three challenges
 
 ### Challenge 1 — Data-shaping logic (`logic.py`)
@@ -60,10 +71,16 @@ Your job is to call the matching logic function and return the result. Look
 for the `=== CHALLENGE 2 (part A) ===` and `=== CHALLENGE 2 (part B) ===`
 banners.
 
-### Challenge 3 — Prompt template (`prompts.py`)
+### Challenge 3 — Prompt template, list variant (`prompts.py`)
 
 Return an f-string that asks the LLM to list output files for the given
 selector arguments. Look for the `=== CHALLENGE 3 ===` banner.
+
+### Challenge 4 — Prompt template, query variant (`prompts.py`)
+
+Return an f-string that asks the LLM to run a DuckDB SQL query against the
+output file selected by the given selector arguments. Look for the
+`=== CHALLENGE 4 ===` banner.
 
 ---
 
@@ -124,5 +141,18 @@ Replace the placeholder return with:
 return (
     f"List the available output files for the {configuration} configuration "
     f"on {date}, {forecast} forecast, cycle {cycle}, vpu {vpu}."
+)
+```
+
+### 4 — `prompts.py::query_output_file`
+
+Replace the placeholder return with:
+
+```python
+return (
+    
+    f"Run the DuckDB query `{query}` against the output file for the "
+    f"{configuration} configuration on {date}, {forecast} forecast, "
+    f"cycle {cycle}, vpu {vpu}."
 )
 ```

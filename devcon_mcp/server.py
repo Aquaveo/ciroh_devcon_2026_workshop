@@ -66,3 +66,6 @@ def main() -> None:
         port=port,
         middleware=CORS_MIDDLEWARE,
     )
+
+if __name__ == "__main__":
+    main()

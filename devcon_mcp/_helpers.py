@@ -366,10 +366,11 @@ def get_output_file(
         )
 
     except FileNotFoundError:
-        return success_payload(
+        return error_payload(
+            "not_found",
+            f"No NRDS output files found at {s3_dir}. Try a different date or selector.",
             dir=s3_dir,
             count=0,
-            selected=None,
         )
     except Exception as e:
         return error_payload("Error", str(e))

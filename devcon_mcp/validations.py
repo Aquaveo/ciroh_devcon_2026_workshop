@@ -6,6 +6,7 @@ FORECAST_HINT = "short_range / medium_range / analysis_assim_extend"
 DATE_HINT = "yyyy-mm-dd"
 CYCLE_HINT = "00-23, e.g., 00"
 VPU_HINT = "06, VPU_06, or 3W"
+QUERY_HINT = "DuckDB SELECT against table `output`, e.g. SELECT * FROM output LIMIT 10"
 
 
 ## This is for the tools

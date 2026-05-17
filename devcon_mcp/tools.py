@@ -10,6 +10,8 @@ contract between the LLM and this server — the LLM uses the description +
 Field hints to decide whether to call this tool and what to pass.
 """
 
+import logging
+
 from typing_extensions import Annotated
 from typing import Optional, Dict, Any
 from pydantic import Field
@@ -20,6 +22,9 @@ from .logic import (
     query_output_file_from_output_selector,
 )
 from .validations import CONFIGURATIONS, FORECASTS, DATE_PATTERN, VPUS
+
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
 
 
 @mcp.tool(
@@ -37,6 +42,10 @@ def list_available_output_files_tool(
     vpu: Annotated[VPUS, Field(description="VPU identifier")] = None,
     ensemble: Annotated[Optional[str], Field(description="Only for medium_range", pattern=r"^\d+$")] = None,
 ) -> Dict[str, Any]:
+    logger.info(
+        "Tool list_available_output_files called: configuration=%s date=%s forecast=%s cycle=%s vpu=%s ensemble=%s",
+        configuration, date, forecast, cycle, vpu, ensemble,
+    )
     # === CHALLENGE 2 (part A) ===
     # One line. Call list_available_output_files(...) with the arguments you
     # received and return the result. The function lives in logic.py.
@@ -71,6 +80,10 @@ def query_output_file_from_output_selector_tool(
     file_name: Annotated[Optional[str], Field(description="Exact filename; overrides index when set")] = None,
     index: Annotated[Optional[int], Field(description="0-based index into sorted files", ge=0)] = 0,
 ) -> Dict[str, Any]:
+    logger.info(
+        "Tool query_output_file_from_output_selector called: configuration=%s date=%s forecast=%s cycle=%s vpu=%s query=%r",
+        configuration, date, forecast, cycle, vpu, query,
+    )
     # === CHALLENGE 2 (part B) ===
     # One line. Call query_output_file_from_output_selector(...) with the
     # arguments you received and return the result. The function lives in logic.py.

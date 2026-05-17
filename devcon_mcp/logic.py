@@ -54,6 +54,8 @@ def list_available_output_files(
         files = fs.ls(s3_dir, detail=False)
         files = [f for f in files if f.lower().endswith(".parquet") or f.lower().endswith(".nc")]
 
+        logger.info("S3 listing returned %d raw paths from %s — entering Challenge 1A", len(files), s3_dir)
+
         # === CHALLENGE 1A ===
         # Two lines. Sort `files`, then turn each entry into a
         # {"name": ..., "path": ...} record and store the list in `items`.
@@ -108,6 +110,7 @@ def query_output_file_from_output_selector(
     # so the LLM sees the structured error envelope.
     #
     # Answer is in README.md under "Answers > 1B".
+
     resolved = success_payload(selected=None)
     return resolved
     # === END CHALLENGE 1B ===
