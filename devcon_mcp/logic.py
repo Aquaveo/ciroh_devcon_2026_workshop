@@ -9,7 +9,7 @@ import logging
 
 from typing import Dict, Any, Optional
 
-from .utils_rest import (
+from .utils import (
     normalize_date_folder,
     success_payload,
     s3_filesystem,

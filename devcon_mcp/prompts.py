@@ -1,6 +1,6 @@
 from .engine import mcp
 from typing_extensions import Annotated
-from pyndatic import Field
+from pydantic import Field
 from .validations import CONFIGURATION_HINT, DATE_HINT, FORECAST_HINT, CYCLE_HINT, VPU_HINT
 
 

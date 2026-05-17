@@ -1,6 +1,6 @@
 from .engine import mcp, LOGGER
 from .logic import list_available_output_files, query_output_file_from_output_selector
-from pyndatic import Field
+from pydantic import Field
 from typing_extensions import Annotated, Optional, Dict, Any
 from .validations import CONFIGURATIONS, FORECASTS, DATE_PATTERN, VPUS
 
@@ -39,11 +39,9 @@ def list_available_nrds_output_files(
     Returns:
         List[str]: A list of output file paths.
     """
-    pass
-
     params: Dict[str, Any] = {
         "configuration": configuration,
-        "date": date.isoformat(),
+        "date": date,
         "forecast": forecast,
         "cycle": cycle,
         "vpu": vpu,
@@ -147,7 +145,7 @@ def query_output_file_from_output_selector_tool(
 
     params: Dict[str, Any] = {
         "configuration": configuration,
-        "date": date.isoformat(),
+        "date": date,
         "forecast": forecast,
         "cycle": cycle,
         "vpu": vpu,
@@ -177,7 +175,7 @@ def query_output_file_from_output_selector_tool(
     LOGGER.info(
         "Tool query_output_file_from_output_selector completed configuration=%s date=%s forecast=%s cycle=%s vpu=%s",
         configuration,
-        date.isoformat(),
+        date,
         params["forecast"],
         cycle,
         params["vpu"],
