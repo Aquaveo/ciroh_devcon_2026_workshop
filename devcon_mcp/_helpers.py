@@ -15,7 +15,6 @@ import duckdb
 import pandas as pd
 import re
 import logging
-from botocore.exceptions import ClientError
 
 HTTP_TIMEOUT_SECONDS = 60
 BUCKET = "ciroh-community-ngen-datastream"
@@ -27,89 +26,6 @@ _OUTPUT_SQL_FROM_OUTPUT_RE = re.compile(r"(?is)\bFROM\s+output\b")
 _OUTPUT_SQL_FORBIDDEN_RE = re.compile(
     r"(?is)\b(?:INSERT|UPDATE|DELETE|DROP|ALTER|CREATE|COPY|ATTACH|DETACH|CALL|PRAGMA|VACUUM|TRUNCATE|MERGE|REPLACE)\b"
 )
-
-_DUCKDB_CANDIDATES_RE = re.compile(
-    r'Candidate bindings:\s*(.+?)(?:\n|$)', re.IGNORECASE
-)
-_IO_ERROR_CATALOG = {
-    "timeout": (
-        "Upstream request timed out.",
-        "Upstream timed out. Retry the same call once; if it fails again, "
-        "surface the error to the user and try a different selector "
-        "(e.g., a different date or forecast cycle).",
-    ),
-    "permission_denied": (
-        "Access denied to the upstream data store.",
-        "Access denied to the upstream data store. Do NOT retry - this is "
-        "a deployment configuration issue. Surface to the user as a "
-        "server-side problem.",
-    ),
-    "upstream_error": (
-        "Upstream data store error.",
-        "Upstream data store error. Do NOT retry the same call - try a "
-        "different selector combination (model/date/forecast/vpu) before "
-        "reporting failure to the user.",
-    ),
-    "not_found": (
-        "Requested resource was not found.",
-        "Requested resource was not found. Do NOT retry the same call - "
-        "the selector combination does not match any available data. Try "
-        "a different selector or check what's available via the "
-        "corresponding list_* tool.",
-    ),
-    "execution_error": (
-        "Internal execution error.",
-        "Internal execution error. Do NOT retry - surface to the user. If "
-        "reproducible, this is a server-side bug.",
-    ),
-}
-
-def _classify_io_error(exc: BaseException) -> tuple[str, str, str]:
-    """Return (error_code, sanitized_message, fix_hint) for any caught IO exception.
-
-    Maps the raised exception class to a stable error code and per-code
-    sanitized text. The raw ``str(exc)`` is intentionally NOT propagated
-    into the LLM-facing envelope - see _IO_ERROR_CATALOG for the rationale.
-
-    Programmer-error DuckDB classes (BinderException, ParserException,
-    CatalogException) MUST be re-raised before reaching this helper -
-    classifying them as execution_error would mask wrong-column / malformed
-    -SQL / missing-table bugs and let an LLM retry forever. Callers should
-    check ``isinstance(exc, (duckdb.BinderException, duckdb.ParserException,
-    duckdb.CatalogException))`` and re-raise before calling this function.
-    """
-    from botocore.exceptions import ClientError
-
-    code: str
-    if isinstance(exc, TimeoutError):
-        code = "timeout"
-    elif isinstance(exc, PermissionError):
-        code = "permission_denied"
-    elif isinstance(exc, FileNotFoundError):
-        code = "not_found"
-    elif isinstance(exc, ClientError):
-        # Inspect the AWS error code for AccessDenied / NoSuchKey
-        aws_code = exc.response.get("Error", {}).get("Code", "")
-        if aws_code in ("AccessDenied", "403"):
-            code = "permission_denied"
-        elif aws_code in ("NoSuchKey", "NoSuchBucket", "404"):
-            code = "not_found"
-        else:
-            code = "upstream_error"
-    elif isinstance(exc, duckdb.IOException):
-        code = "upstream_error"
-    elif isinstance(exc, ConnectionError):
-        code = "upstream_error"
-    elif isinstance(exc, OSError):
-        # OSError parent covers many filesystem/network classes not pinned above.
-        # Default to upstream_error for these; if a more specific case
-        # emerges in production, branch here.
-        code = "upstream_error"
-    else:
-        code = "execution_error"
-
-    message, fix_hint = _IO_ERROR_CATALOG[code]
-    return code, message, fix_hint
 
 def s3fs_config_kwargs() -> Dict:
     """Build config_kwargs for s3fs / fsspec("s3", ...) - passed directly
@@ -237,16 +153,6 @@ def duckdb_connect_with_httpfs(database: str = ":memory:") -> duckdb.DuckDBPyCon
     con.execute(f"SET http_timeout = {HTTP_TIMEOUT_SECONDS}")
     return con
 
-def _s3fs_config_kwargs() -> dict:
-    """Build config_kwargs for s3fs / fsspec("s3", ...) - passed directly
-    to botocore.client.Config(...) by s3fs.
-    """
-    return {
-        "connect_timeout": HTTP_TIMEOUT_SECONDS,
-        "read_timeout": HTTP_TIMEOUT_SECONDS,
-        "retries": {"max_attempts": 1},
-    }
-
 def open_fsspec_file(url: str, mode: str = "rb"):
     """Open a remote file with the timeout-configured fsspec client.
     """
@@ -254,7 +160,7 @@ def open_fsspec_file(url: str, mode: str = "rb"):
         url,
         mode=mode,
         anon=True,
-        config_kwargs=_s3fs_config_kwargs(),
+        config_kwargs=s3fs_config_kwargs(),
     )
 
 def _detect_output_file_kind(file_url: str) -> Optional[str]:
@@ -264,29 +170,6 @@ def _detect_output_file_kind(file_url: str) -> Optional[str]:
     if lower.endswith(".nc") or lower.endswith(".nc4"):
         return "netcdf"
     return None
-
-def _is_duckdb_programmer_error(exc: BaseException) -> bool:
-    """True if exc is a DuckDB SQL programmer-error class that must NOT be
-    caught when the SQL was hardcoded by us.
-
-    Wrong-column / malformed-SQL / missing-table errors in OUR hardcoded
-    SQL should crash visibly so they're discoverable in observability logs,
-    not normalized to a polite envelope. CRITICAL: this guard applies ONLY
-    to hardcoded-SQL call sites (e.g. _duckdb_lookup_hydrofabric_feature).
-
-    For LLM-supplied-SQL call sites (query_output_file's `query` arg), use
-    ``_classify_llm_sql_error`` instead - the LLM CAN recover from these
-    if given a structured envelope with the column list as fix_hint, the
-    same pattern InputValidationEnvelopeMiddleware uses for kwarg errors.
-    """
-    return isinstance(
-        exc,
-        (
-            duckdb.BinderException,
-            duckdb.ParserException,
-            duckdb.CatalogException,
-        ),
-    )
 
 def validate_output_sql(query: str) -> str:
     """
@@ -318,97 +201,6 @@ def validate_output_sql(query: str) -> str:
         raise ValueError("query must read FROM output")
 
     return q
-
-def _extract_duckdb_candidates(exc_message: str) -> list[str]:
-    """Pull the candidate column names out of a DuckDB BinderException message.
-
-    Returns ``[]`` if no candidate-bindings clause is found (e.g., the error
-    is ParserException, or the message format changed in a future DuckDB
-    version). Callers should handle the empty case as "we don't know the
-    columns; fix_hint can't list them."
-    """
-    match = _DUCKDB_CANDIDATES_RE.search(exc_message)
-    if not match:
-        return []
-    raw = match.group(1)
-    # raw looks like: '"output.feature_id", "output.velocity"'
-    parts = re.findall(r'"([^"]+)"', raw)
-    columns: list[str] = []
-    for part in parts:
-        # Strip leading table-qualifier: "output.velocity" -> "velocity"
-        # Keep the original if there's no dot.
-        bare = part.rsplit(".", 1)[-1] if "." in part else part
-        if bare and bare not in columns:
-            columns.append(bare)
-    return columns
-
-def _classify_llm_sql_error(
-    exc: BaseException, file_url: str, query: str
-) -> tuple[str, str, str, list[str]]:
-    """Return (error_code, sanitized_message, fix_hint, available_columns)
-    for a DuckDB programmer-error class fired against LLM-supplied SQL.
-
-    The LLM-facing envelope from this classifier is the SQL analogue of
-    InputValidationEnvelopeMiddleware's `invalid_args` envelope: it gives
-    the LLM a structured way to recover in one retry instead of stalling
-    in a thinking loop (as observed with qwen on 2026-05-10).
-
-    Callers must use this AT LLM-supplied-SQL call sites only (currently
-    ``query_output_file`` in rest.py). For hardcoded-SQL paths, use the
-    existing ``_is_duckdb_programmer_error`` re-raise guard instead.
-    """
-    exc_msg = str(exc)
-    if isinstance(exc, duckdb.BinderException):
-        columns = _extract_duckdb_candidates(exc_msg)
-        if columns:
-            column_list = ", ".join(columns)
-            fix_hint = (
-                f"The query references a column that does not exist in the "
-                f"output file. The actual columns are: {column_list}. "
-                f"Rewrite the query using one of these column names and "
-                f"retry once."
-            )
-        else:
-            fix_hint = (
-                "The query references a column that does not exist in the "
-                "output file. Rewrite the query using only the columns "
-                "documented for this output kind, or check what's available "
-                "by running a probe query like SELECT * FROM output LIMIT 1, "
-                "and retry once."
-            )
-        return (
-            "invalid_query",
-            "Query references a column that does not exist in the output file.",
-            fix_hint,
-            columns,
-        )
-    if isinstance(exc, duckdb.ParserException):
-        return (
-            "invalid_query",
-            "Query is not valid SQL syntax.",
-            (
-                "The query is not valid DuckDB SQL. Common causes: missing "
-                "comma, unbalanced parenthesis, wrong keyword order. Rewrite "
-                "as a single SELECT statement against the `output` table and "
-                "retry once."
-            ),
-            [],
-        )
-    if isinstance(exc, duckdb.CatalogException):
-        return (
-            "invalid_query",
-            "Query references a missing table.",
-            (
-                "The query references a table that does not exist. The only "
-                "queryable table in this context is `output`. Rewrite the "
-                "FROM clause to `FROM output` and retry once."
-            ),
-            [],
-        )
-    # Other duckdb.Error subclasses or non-duckdb classes: fall back to
-    # the generic IO classifier so callers always get a typed result.
-    code, msg, fix_hint = _classify_io_error(exc)
-    return code, msg, fix_hint, []
 
 def _normalize_output_file_url(s3_url: str) -> str:
     file_url = str(s3_url or "").strip()
@@ -634,40 +426,10 @@ def query_output_file(s3_url, query) -> Dict:
             data=df.to_dict(orient="records"),
         )
 
-    except (duckdb.BinderException, duckdb.ParserException, duckdb.CatalogException) as e:
-        code, msg, fix_hint, available_columns = _classify_llm_sql_error(
-            e, file_url, query
-        )
+    except Exception as e:
         return error_payload(
-            code,
-            msg,
-            fix_hint=fix_hint,
-            file=file_url,
-            file_type=kind,
-            query=query,
-            available_columns=available_columns,
-        )
-    except (OSError, ClientError, duckdb.Error) as e:
-        if _is_duckdb_programmer_error(e):
-            raise
-        code, msg, fix_hint = _classify_io_error(e)
-        # not_found preserves the empty-result shape that callers expect
-        if code == "not_found":
-            return error_payload(
-                code,
-                msg,
-                fix_hint=fix_hint,
-                file=file_url,
-                file_type=kind,
-                query=query,
-                columns=[],
-                rows=0,
-                data=[],
-            )
-        return error_payload(
-            code,
-            msg,
-            fix_hint=fix_hint,
+            "error",
+            str(e),
             file=file_url,
             file_type=kind,
             query=query,
