@@ -1,187 +1,79 @@
-from .engine import mcp, LOGGER
-from .logic import list_available_output_files, query_output_file_from_output_selector
+"""MCP tool definitions for the DevCon workshop.
+
+Each tool below has the same shape:
+  1. @mcp.tool decorator names the tool and writes its description
+  2. function signature uses Annotated[...] + Field(...) for LLM-visible schema
+  3. body calls into logic.py and returns the result
+
+You only fill in the body for CHALLENGE 2. Everything above the body is a
+contract between the LLM and this server — the LLM uses the description +
+Field hints to decide whether to call this tool and what to pass.
+"""
+
+from typing_extensions import Annotated
+from typing import Optional, Dict, Any
 from pydantic import Field
-from typing_extensions import Annotated, Optional, Dict, Any
+
+from .engine import mcp
+from .logic import (
+    list_available_output_files,
+    query_output_file_from_output_selector,
+)
 from .validations import CONFIGURATIONS, FORECASTS, DATE_PATTERN, VPUS
 
+
 @mcp.tool(
-    name="get_nrds_parquet_output_file",
-    description="Get a list of output files for a given configuration, date, forecast, cycle, ensemble, vpu, index",
+    name="list_available_output_files",
+    description=(
+        "List NRDS parquet/netcdf output files for one "
+        "configuration/date/forecast/cycle/vpu combination."
+    ),
 )
-def list_available_nrds_output_files(
-    configuration: Annotated[CONFIGURATIONS, Field(description="Configuration name (e.g., 'cfe_nom', 'lstm', 'routing_only')")],
-    date: Annotated[
-        Optional[str],
-        Field(description="YYYY-MM-DD or YYYY/MM/DD", pattern=DATE_PATTERN),
-    ] = None,
-    forecast: Annotated[FORECASTS, Field(description="Forecast id - Available forecast per configuration")] = None,
-    cycle: Annotated[str, Field(description="Cycle", pattern=r"^(?:[01]\d|2[0-3])$")] = "00",
-    ensemble: Annotated[
-        Optional[str],
-        Field(description="Only available for medium_range forecast", pattern=r"^\d+$"),
-    ] = None,
-    vpu: Annotated[
-        Optional[VPUS],
-        Field(
-            description="VPU identifier - Available VPUs per configuration and forecast",
-        ),
-    ] = None,
-) -> str:
-    """
-    Get a list of output files for a given configuration, date, forecast, cycle, ensemble, vpu, index.
-    Args:
-        configuration (str): The configuration name.
-        date (str): The date in YYYYMMDD format.
-        forecast (str): The forecast hour in HH format.
-        cycle (str): The cycle in HH format.
-        ensemble (str): The ensemble member in MM format.
-        vpu (str): The VPU number in VV format.
-    Returns:
-        List[str]: A list of output file paths.
-    """
-    params: Dict[str, Any] = {
-        "configuration": configuration,
-        "date": date,
-        "forecast": forecast,
-        "cycle": cycle,
-        "vpu": vpu,
-    }
-    if ensemble is not None:
-        params["ensemble"] = ensemble
-
-    result = list_available_output_files(
-        configuration=params["configuration"],
-        date=params["date"],
-        forecast=params["forecast"],
-        cycle=params["cycle"],
-        vpu=params["vpu"],
-        ensemble=params.get("ensemble"),
-    )
-
-    return result
+def list_available_output_files_tool(
+    configuration: Annotated[CONFIGURATIONS, Field(description="Configuration id")],
+    date: Annotated[str, Field(description="YYYY-MM-DD or YYYY/MM/DD", pattern=DATE_PATTERN)],
+    forecast: Annotated[FORECASTS, Field(description="Forecast id")],
+    cycle: Annotated[str, Field(description="Cycle 00-23", pattern=r"^(?:[01]\d|2[0-3])$")] = "00",
+    vpu: Annotated[VPUS, Field(description="VPU identifier")] = None,
+    ensemble: Annotated[Optional[str], Field(description="Only for medium_range", pattern=r"^\d+$")] = None,
+) -> Dict[str, Any]:
+    # === CHALLENGE 2 (part A) ===
+    # One line. Call list_available_output_files(...) with the arguments you
+    # received and return the result. The function lives in logic.py.
+    # Answer is in README.md under "Answers > 2".
+    return {"ok": False, "error": {"code": "not_implemented", "message": "Challenge 2A"}}
+    # === END CHALLENGE 2 (part A) ===
 
 
 @mcp.tool(
     name="query_output_file_from_output_selector",
     description=(
-        "Resolve one NRDS output file from configuration/date/forecast/cycle/vpu and run a read-only "
-        "DuckDB SQL query against it in one step. "
+        "Resolve one NRDS output file by configuration/date/forecast/cycle/vpu "
+        "and run a read-only DuckDB SQL query against it in one step. "
         "Supports parquet (.parquet) and netcdf (.nc, .nc4). "
-        "Use this when you know configuration/date/forecast/cycle/vpu instead of a direct s3_url. "
-        "If file_name is provided it is used; otherwise index is used and defaults to 0 "
-        "(the first sorted output file). "
-        "The SQL query must be a single read-only SELECT or WITH...SELECT statement and must read FROM output."
+        "The query must be a single SELECT (or WITH ... SELECT) reading FROM output."
     ),
 )
-
-
 def query_output_file_from_output_selector_tool(
-    configuration: Annotated[CONFIGURATIONS, Field(description="configuration id - call list_available_configurations to discover valid values")] = None,
-    date: Annotated[
-        Optional[str],
-        Field(description="YYYY-MM-DD or YYYY/MM/DD", pattern=DATE_PATTERN),
-    ] = None,
-    forecast: Annotated[FORECASTS, Field(description="Forecast id - call list_available_forecasts to discover valid values")] = None,
-    cycle: Annotated[
-        str,
-        Field(
-            description="Cycle (00-23)",
-            pattern=r"^(?:[01]\d|2[0-3])$",
-        ),
-    ] = "00",
-    vpu: Annotated[
-        str,
-        Field(
-            description="VPU identifier - call list_available_vpus to discover valid values. Accepts formats like '06', 'VPU_06', or '3W'"
-        ),
-    ] = None,
+    configuration: Annotated[CONFIGURATIONS, Field(description="Configuration id")],
+    date: Annotated[str, Field(description="YYYY-MM-DD or YYYY/MM/DD", pattern=DATE_PATTERN)],
+    forecast: Annotated[FORECASTS, Field(description="Forecast id")],
+    cycle: Annotated[str, Field(description="Cycle 00-23", pattern=r"^(?:[01]\d|2[0-3])$")] = "00",
+    vpu: Annotated[VPUS, Field(description="VPU identifier")] = None,
     query: Annotated[
         str,
         Field(
-            description=(
-                "DuckDB SQL query against table `output`. "
-                "Single read-only SELECT or WITH...SELECT statement only. Must read FROM output."
-            ),
+            description="DuckDB SQL: single read-only SELECT FROM output.",
             pattern=r"(?is)^\s*(?:WITH\b.*?\bSELECT\b|SELECT\b).*$",
         ),
     ] = "SELECT * FROM output LIMIT 10",
-    ensemble: Annotated[
-        Optional[str],
-        Field(description="Optional ensemble member for medium_range.", pattern=r"^\d+$"),
-    ] = None,
-    file_name: Annotated[
-        Optional[str],
-        Field(
-            description=(
-                "Exact filename to query. If provided, it is used and index is ignored."
-            )
-        ),
-    ] = None,
-    index: Annotated[
-        Optional[int],
-        Field(
-            description=(
-                "0-based index into the sorted output file list. "
-                "Used only when file_name is not provided. Defaults to 0 (first file)."
-            ),
-            ge=0,
-        ),
-    ] = 0,
+    ensemble: Annotated[Optional[str], Field(description="Only for medium_range", pattern=r"^\d+$")] = None,
+    file_name: Annotated[Optional[str], Field(description="Exact filename; overrides index when set")] = None,
+    index: Annotated[Optional[int], Field(description="0-based index into sorted files", ge=0)] = 0,
 ) -> Dict[str, Any]:
-
-    LOGGER.info(
-        "Tool query_output_file_from_output_selector called configuration=%s date=%s forecast=%s cycle=%s "
-        "vpu=%s ensemble=%s file_name=%s index=%s query_preview=%s",
-        configuration,
-        date,
-        forecast,
-        cycle,
-        vpu,
-        ensemble,
-        file_name,
-        index,
-        query,
-    )
-
-    params: Dict[str, Any] = {
-        "configuration": configuration,
-        "date": date,
-        "forecast": forecast,
-        "cycle": cycle,
-        "vpu": vpu,
-        "query": query,
-    }
-
-    if ensemble is not None:
-        params["ensemble"] = ensemble
-
-    if file_name is not None:
-        params["file_name"] = file_name
-    else:
-        params["index"] = 0 if index is None else index
-
-    result = query_output_file_from_output_selector(
-        configuration=params["configuration"],
-        date=params["date"],
-        forecast=params["forecast"],
-        cycle=params["cycle"],
-        vpu=params["vpu"],
-        query=params["query"],
-        ensemble=params.get("ensemble"),
-        file_name=params.get("file_name"),
-        index=params.get("index"),
-    )
-
-    LOGGER.info(
-        "Tool query_output_file_from_output_selector completed configuration=%s date=%s forecast=%s cycle=%s vpu=%s",
-        configuration,
-        date,
-        params["forecast"],
-        cycle,
-        params["vpu"],
-    )
-    LOGGER.info(
-        "query_output_file_from_output_selector result: %s",
-        result,
-    )
-    return result
+    # === CHALLENGE 2 (part B) ===
+    # One line. Call query_output_file_from_output_selector(...) with the
+    # arguments you received and return the result. The function lives in logic.py.
+    # Answer is in README.md under "Answers > 2".
+    return {"ok": False, "error": {"code": "not_implemented", "message": "Challenge 2B"}}
+    # === END CHALLENGE 2 (part B) ===
